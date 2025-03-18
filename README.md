@@ -5,6 +5,6 @@
 - [Мануковский Егор Юрьевич](https://github.com/Kauto9) - Руководитель, Аналитик, Менеджер
 - [Анисимова Анастасия Евгеньевна](https://github.com/AnastasiaAnisimovaa) - Дизайнер
 - [Быханов Артем Константинович](https://github.com/artembykhanov) - DevOps, Back-end разработчик
-- [Колчин Даниил Алексеевич](https://github.com/puss1-destroyer) - Проектировщик, Тестировщик
+- [Колчин Даниил Алексеевич](https://github.com/bipolyarkasss) - Проектировщик, Тестировщик
 - [Курманов Кирилл Владиславович](https://github.com/twoheade) - Sale, Технический писатель, Контент-менеджер
 - [Косьянов Даниил Витальевич](https://github.com/dnlksnvv) - Fullstack разработчик, Архитектор
