@@ -12,3 +12,4 @@
 ### Ссылки на ресурсы связанные с нашим проектом
 - [Структора интерфейса](https://miro.com/app/board/uXjVIY3A3dY=/?share_link_id=429064983553)
 - [Различные диаграммы](https://miro.com/app/board/uXjVIV8aZ_4=/?share_link_id=331823373719)
+- [Черновой вариант тз](https://docs.google.com/document/d/1PAhxTatfXSCDa4psCanAIxBpQghtPcClDAYPvJ0niIQ/edit?usp=sharing)
