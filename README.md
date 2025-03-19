@@ -8,3 +8,7 @@
 - [Колчин Даниил Алексеевич](https://github.com/bipolyarkasss) - Проектировщик, Тестировщик
 - [Курманов Кирилл Владиславович](https://github.com/twoheade) - Sale, Технический писатель, Контент-менеджер
 - [Косьянов Даниил Витальевич](https://github.com/dnlksnvv) - Fullstack разработчик, Архитектор
+
+### Ссылки на ресурсы связанные с нашим проектом
+- [Структора интерфейса](https://miro.com/app/board/uXjVIY3A3dY=/?share_link_id=429064983553)
+- [Различные диаграммы](https://miro.com/app/board/uXjVIV8aZ_4=/?share_link_id=331823373719)
