@@ -13,3 +13,5 @@
 - [Структура интерфейса](https://miro.com/app/board/uXjVIY3A3dY=/?share_link_id=429064983553)
 - [Различные диаграммы](https://miro.com/app/board/uXjVIV8aZ_4=/?share_link_id=331823373719)
 - [Черновой вариант тз](https://docs.google.com/document/d/1PAhxTatfXSCDa4psCanAIxBpQghtPcClDAYPvJ0niIQ/edit?usp=sharing)
+- [Правила коммитов](https://docs.google.com/document/d/1Mwv-NgqWGU2qA6rxbst9bC5TX6orNBtU6OhgXCJV5bw/edit?usp=sharing)
+- [Соглашение о коммитах](https://www.conventionalcommits.org/ru/v1.0.0/)
