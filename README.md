@@ -31,7 +31,9 @@
 ## 🔗 Ресурсы проекта
 
 ### Дизайн и архитектура
-- [Структура интерфейса](https://miro.com/app/board/uXjVINxz5yY=/)
+- [Структура интерфейса](https://miro.com/app/board/uXjVIKBjnWA=/?share_link_id=276901558121)
 - [Различные диаграммы](https://miro.com/app/board/uXjVINxSGV4=/)
 - [Микросервисная архитектура](https://miro.com/app/board/uXjVIcx8C5w=/)
 - [Дизайн окон](https://www.figma.com/design/h5vqpLLGTlgMzoDlpKeGlc/Trainova?node-id=0-1&p=f&t=oQhG7wvMVY9KsMT2-0)
+- [Road map](https://miro.com/app/board/uXjVIKCN07g=/?share_link_id=807733874937)
+- [Пользовательские пути](https://miro.com/app/board/uXjVIKCCElc=/?share_link_id=400310291375)
