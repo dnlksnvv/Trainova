@@ -55,6 +55,23 @@
 
 ### Управление проектом
 - [Jira](https://manukovskiy.atlassian.net/jira/software/projects/KAN/boards/1?atlOrigin=eyJpIjoiZjQ5MDRkM2M2ZDkyNDYzNTg4YWE1NmIzZjQ0Y2FhOWEiLCJwIjoiaiJ9)
+
 Аккаунт для просмотра:
-Логин:egormanukovsky@yandex.ru
-Пароль:Guest123987
+
+Логин: egormanukovsky@yandex.ru
+  
+Пароль: Guest123987
+
+## Проверки работ
+
+[чек лист]()
+
+Команды которые проверяли нас:
+
+[8.4]()
+
+[3.1]()
+
+[4.спец1]()
+
+[3.4]()
