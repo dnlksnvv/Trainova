@@ -68,10 +68,9 @@
 
 Команды которые проверяли нас:
 
-[8.4]()
+группа 8 команда 4 [GitHub](https://github.com/nmasalkin/Project-work) [чек лист](https://github.com/nmasalkin/Project-work/blob/main/Чек-лист/Кросс-проверка.pdf)
 
-[3.1]()
+группа 3 команда 1 [GitHub](https://github.com/Shao-Lin/Music-dating) [чек лист](https://github.com/Shao-Lin/Music-dating/blob/main/documentation/ВГУ-ТП.%20Чеклист%201%20этап%203.1%20команда.pdf)
 
-[4.спец1]()
 
-[3.4]()
+группа 3 команда 4 [GitHub](https://github.com/uyrtryu/MindCard/tree/main) [чек лист](https://github.com/uyrtryu/MindCard/blob/main/Documentation/checklist1atta.pdf)
