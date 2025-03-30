@@ -55,3 +55,6 @@
 
 ### Управление проектом
 - [Jira](https://manukovskiy.atlassian.net/jira/software/projects/KAN/boards/1?atlOrigin=eyJpIjoiZjQ5MDRkM2M2ZDkyNDYzNTg4YWE1NmIzZjQ0Y2FhOWEiLCJwIjoiaiJ9)
+Аккаунт для просмотра:
+Логин:egormanukovsky@yandex.ru
+Пароль:Guest123987
