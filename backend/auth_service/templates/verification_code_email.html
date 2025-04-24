@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Код подтверждения - Trainova</title>
+  </head>
+  <body
+    style="
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #000000;
+      background-color: #ffffff;
+      margin: 0;
+      padding: 20px;
+    "
+  >
+    <h2 style="color: #f67c24">Здравствуйте!</h2>
+
+    {% if context == "email_change" %}
+    <p style="font-size: 14px; color: #000000">
+      Вы запросили смену адреса электронной почты в системе Trainova.
+    </p>
+    <p style="font-size: 14px; color: #000000">
+      Для подтверждения новой почты, пожалуйста, введите указанный ниже код
+      верификации.
+    </p>
+    {% elif context == "password_change" %}
+    <p style="font-size: 14px; color: #000000">
+      Вы запросили смену пароля в системе Trainova.
+    </p>
+    <p style="font-size: 14px; color: #000000">
+      Для подтверждения смены пароля, пожалуйста, введите указанный ниже код
+      верификации.
+    </p>
+    {% elif context == "password_reset" %}
+    <p style="font-size: 14px; color: #000000">
+      Вы запросили восстановление пароля в системе Trainova.
+    </p>
+    <p style="font-size: 14px; color: #000000">
+      Для восстановления доступа к аккаунту, пожалуйста, введите указанный ниже
+      код верификации.
+    </p>
+    {% else %}
+    <p style="font-size: 14px; color: #000000">
+      Благодарим вас за регистрацию в сервисе Trainova.
+    </p>
+    {% endif %}
+
+    <p style="font-size: 18px; color: #000000">Ваш код подтверждения:</p>
+    <h1
+      style="
+        font-size: 32px;
+        color: #f67c24;
+        letter-spacing: 5px;
+        text-align: center;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+      "
+    >
+      {{verification_code}}
+    </h1>
+
+    {% if context == "email_change" %}
+    <p style="font-size: 14px; color: #000000">
+      Введите этот код в приложении для завершения процесса смены email.
+    </p>
+    {% elif context == "password_change" %}
+    <p style="font-size: 14px; color: #000000">
+      Введите этот код в приложении для завершения процесса смены пароля.
+    </p>
+    {% elif context == "password_reset" %}
+    <p style="font-size: 14px; color: #000000">
+      Введите этот код в приложении для восстановления пароля.
+    </p>
+    <p style="font-size: 14px; color: #f67c24">
+      ВНИМАНИЕ: Если вы не запрашивали восстановление пароля, немедленно
+      измените пароль, так как это может быть попытка взлома вашего аккаунта.
+    </p>
+    {% else %}
+    <p style="font-size: 14px; color: #000000">
+      Введите этот код в приложении для завершения процесса регистрации.
+    </p>
+    {% endif %}
+
+    <hr style="border: 1px solid #71717a" />
+
+    <p style="font-size: 14px; color: #71717a">
+      Если вы не запрашивали этот код, проигнорируйте это письмо.
+    </p>
+  </body>
+</html>
