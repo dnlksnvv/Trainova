@@ -1,9 +1,12 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
-    APP_NAME: str
+    APP_NAME: str = "Trainova Auth Service"
+    AUTH_API_PREFIX: str
+    
     DEBUG: bool
     FRONTEND_URL: str
     
@@ -30,7 +33,10 @@ class Settings(BaseSettings):
     DB_HOST: str
     DB_PORT: int
     
+    
     class Config:
-        env_file = ".env"
+        env_file = os.environ.get("CONFIG_FILE", ".env")
+        case_sensitive = False
+        extra = "ignore"
 
 settings = Settings()
