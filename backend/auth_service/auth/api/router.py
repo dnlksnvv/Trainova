@@ -10,6 +10,7 @@ from typing import Dict, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+
 from auth.domain.schemas import (
     UserRegisterRequest,
     UserVerifyRequest,
@@ -43,8 +44,8 @@ class AuthRouter:
         self.token_service = token_service
         self.email_service = EmailService()
         
-        self.oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-        self.router = APIRouter(prefix="/auth", tags=["Auth"])
+        self.oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.AUTH_API_PREFIX}/login")
+        self.router = APIRouter(prefix=settings.AUTH_API_PREFIX, tags=["Auth"])
         
         self.register_routes()
     

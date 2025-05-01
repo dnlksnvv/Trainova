@@ -28,6 +28,30 @@ EXERCISES_CONTENT_DIR = Path("exercises_content")
 
 # Создаем директорию, если она еще не существует
 os.makedirs(EXERCISES_CONTENT_DIR, exist_ok=True)
+# Убедимся, что у директории есть нужные права доступа
+try:
+    os.chmod(EXERCISES_CONTENT_DIR, 0o777)
+    print(f"Установлены права 777 для директории {EXERCISES_CONTENT_DIR}")
+    
+    # Дополнительная отладочная информация о директории
+    import stat
+    st = os.stat(EXERCISES_CONTENT_DIR)
+    permissions = oct(st.st_mode)[-3:]
+    print(f"Директория {EXERCISES_CONTENT_DIR} существует, права доступа: {permissions}")
+    
+    try:
+        import pwd, grp
+        uid = os.getuid()
+        gid = os.getgid()
+        user = pwd.getpwuid(st.st_uid).pw_name
+        group = grp.getgrgid(st.st_gid).gr_name
+        print(f"Владелец: {user} (UID: {st.st_uid}), группа: {group} (GID: {st.st_gid})")
+        print(f"Текущий процесс: UID={uid}, GID={gid}")
+    except Exception as user_err:
+        print(f"Не удалось получить информацию о пользователе: {user_err}")
+        
+except Exception as e:
+    print(f"Предупреждение: не удалось установить права для директории exercises_content: {e}")
 
 class TrainingRouter:
     """
@@ -49,7 +73,7 @@ class TrainingRouter:
         self.activity_service = activity_service
         
         # Создаем основной роутер
-        self.router = APIRouter(prefix=settings.API_PREFIX)
+        self.router = APIRouter(prefix=settings.WORKOUT_API_PREFIX)
         
         # Регистрируем маршруты
         self._register_routes()
@@ -528,31 +552,104 @@ class TrainingRouter:
         # Генерируем новый UUID для gif
         gif_uuid = str(uuid4())
         
+        # Проверяем, существует ли директория, если нет - создаем и устанавливаем права
+        if not os.path.exists(EXERCISES_CONTENT_DIR):
+            try:
+                os.makedirs(EXERCISES_CONTENT_DIR, exist_ok=True)
+                os.chmod(EXERCISES_CONTENT_DIR, 0o777)  # Устанавливаем права 777 (rwx для всех)
+                print(f"Создана директория {EXERCISES_CONTENT_DIR} с правами 777")
+            except Exception as e:
+                print(f"Ошибка при создании директории: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Не удалось создать директорию для GIF-файлов: {str(e)}"
+                )
+        
+        # Проверяем права доступа к директории
+        if not os.access(EXERCISES_CONTENT_DIR, os.W_OK):
+            try:
+                print(f"Нет прав доступа к директории {EXERCISES_CONTENT_DIR}, пробуем изменить права")
+                os.chmod(EXERCISES_CONTENT_DIR, 0o777)
+                print(f"Права успешно изменены")
+            except Exception as e:
+                print(f"Не удалось изменить права доступа: {str(e)}")
+                # Получим информацию о владельце и правах директории
+                try:
+                    import pwd
+                    import stat
+                    st = os.stat(EXERCISES_CONTENT_DIR)
+                    owner = pwd.getpwuid(st.st_uid).pw_name
+                    permissions = oct(st.st_mode)[-3:]
+                    current_user = os.getuid()
+                    error_msg = f"Недостаточно прав для директории {EXERCISES_CONTENT_DIR}. "
+                    error_msg += f"Владелец: {owner}, права: {permissions}, текущий пользователь UID: {current_user}"
+                    print(error_msg)
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=error_msg
+                    )
+                except Exception as stat_err:
+                    print(f"Ошибка при получении статистики: {str(stat_err)}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Недостаточно прав для директории: {str(e)}"
+                    )
+                
         file_path = EXERCISES_CONTENT_DIR / f"{gif_uuid}.gif"
         
         # Если gif уже существует, удаляем старый файл
         if exercise.gif_uuid:
             old_file_path = EXERCISES_CONTENT_DIR / f"{exercise.gif_uuid}.gif"
             if os.path.exists(old_file_path):
-                os.remove(old_file_path)
+                try:
+                    os.remove(old_file_path)
+                    print(f"Удален старый файл: {old_file_path}")
+                except PermissionError as e:
+                    print(f"Ошибка доступа при удалении старого файла: {str(e)}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Ошибка доступа при удалении старого файла. Проверьте права доступа к {old_file_path}"
+                    )
+                except Exception as e:
+                    print(f"Неожиданная ошибка при удалении файла: {str(e)}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Ошибка при удалении старого файла: {str(e)}"
+                    )
         
         # Сохраняем новый файл
         try:
+            print(f"Начинаем сохранение файла в {file_path}")
+            content = await gif_file.read()
             with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(gif_file.file, buffer)
+                buffer.write(content)
+            
+            print(f"Файл сохранен, устанавливаем права доступа")
+            # Устанавливаем права доступа на файл
+            os.chmod(file_path, 0o666)  # rw для всех
+            print(f"Права установлены успешно")
+        except PermissionError as e:
+            print(f"Ошибка прав доступа при сохранении файла: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Недостаточно прав для сохранения файла. Детали: {str(e)}"
+            )
         except Exception as e:
+            print(f"Ошибка при сохранении файла: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при сохранении файла: {str(e)}"
             )
         finally:
-            gif_file.file.close()
+            await gif_file.close()
         
         try:
+            print(f"Обновляем упражнение, устанавливаем gif_uuid={gif_uuid}")
             update_data = ExerciseUpdate(gif_uuid=gif_uuid)
             updated_exercise = await self.exercises_service.update_exercise(exercise_id, update_data)
             
             if not updated_exercise or not updated_exercise.gif_uuid:
+                print("Не удалось обновить GIF-анимацию упражнения")
                 if os.path.exists(file_path):
                     os.remove(file_path)
                 raise HTTPException(
@@ -560,10 +657,12 @@ class TrainingRouter:
                     detail="Не удалось обновить GIF-анимацию упражнения"
                 )
             
+            print(f"Упражнение успешно обновлено")
             return updated_exercise
             
         except Exception as e:
             # Если не удалось обновить упражнение, удаляем созданный файл
+            print(f"Ошибка при обновлении упражнения: {str(e)}")
             if os.path.exists(file_path):
                 os.remove(file_path)
             raise HTTPException(

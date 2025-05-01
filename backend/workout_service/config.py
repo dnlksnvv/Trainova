@@ -1,9 +1,11 @@
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
-    APP_NAME: str
+    WORKOUT_API_PREFIX: str
+    APP_NAME: str = "Trainova Workout Service"
     DEBUG: bool
 
     JWT_SECRET: str
@@ -12,17 +14,15 @@ class Settings(BaseSettings):
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
-    DB_HOST: str 
+    DB_HOST: str
     DB_PORT: int
+
     
-    SERVER_HOST: str
-    SERVER_PORT: int
-    
-    API_PREFIX: str
     
     class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+        env_file = os.environ.get("CONFIG_FILE", ".env")
+        case_sensitive = False
+        extra = "ignore"
 
 
 settings = Settings()

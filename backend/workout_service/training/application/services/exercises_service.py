@@ -222,16 +222,34 @@ class ExercisesService:
             logger.error(f"Ошибка при удалении упражнения {exercise_id}: {str(e)}")
             raise
     
+    async def get_exercises_by_muscle_group(self, muscle_group: str) -> List[Exercise]:
         """
-        Получает список упражнений по группы мышц (устаревший метод)
+        Получает список упражнений по группы мышц
         
         Args:
             muscle_group: Группа мышц как строка
             
         Returns:
-            Список упражнений (всегда пустой, поскольку в таблице нет поля muscle_group)
+            Список упражнений
         """
-        return []
+        try:
+            query = f"""
+                SELECT e.* FROM {EXERCISES_TABLE} e
+                JOIN {MUSCLE_GROUPS_TABLE} mg ON e.muscle_group_id = mg.muscle_group_id
+                WHERE mg.name = $1
+                ORDER BY e.title
+            """
+            
+            rows = await self.db.fetch(query, muscle_group)
+            result = []
+            for row in rows:
+                exercise = self._map_to_model(row)
+                if exercise:
+                    result.append(exercise)
+            return result
+        except Exception as e:
+            logger.error(f"Ошибка при получении упражнений по группе мышц {muscle_group}: {str(e)}")
+            return []
     
     async def get_exercises_by_muscle_group_id(self, muscle_group_id: int) -> List[Exercise]:
         """

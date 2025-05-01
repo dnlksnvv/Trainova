@@ -13,7 +13,7 @@ from training.infrastructure.database import Database
 from training.domain.utils import verify_token
 from config import settings
 
-# Настройка логгирования
+
 logging.basicConfig(
     level=logging.INFO if settings.DEBUG else logging.WARNING,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -23,10 +23,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("main")
 
-# Middleware для аутентификации
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Исключения для путей, не требующих аутентификации
+
         no_auth_paths = [
             "/",
             "/docs",
@@ -35,6 +35,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         ]
         
         if request.url.path in no_auth_paths:
+            return await call_next(request)
+        
+        if request.method == "OPTIONS":
             return await call_next(request)
         
         try:
@@ -50,26 +53,39 @@ class AuthMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.warning(f"Auth middleware error: {str(e)}")
         
-
         return await call_next(request)
 
+
 app = FastAPI(
-    title="Trainova Training Service API",
-    description="API для управления тренировками и упражнениями в приложении Trainova",
+    title="Trainova Workout Service API",
+    description="API для управления тренировками в приложении Trainova",
     version="1.0.0"
 )
 
 
-app.add_middleware(AuthMiddleware)
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8001",
+    "https://trainova.app",
+    "https://trainova.duckdns.org"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # В рабочем окружении указать конкретные домены
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Set-Cookie", "Access-Control-Allow-Headers", 
+                   "Access-Control-Allow-Origin", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Type", "Set-Cookie"],
+    max_age=600, 
 )
 
-# Обработка исключений
+
+app.add_middleware(AuthMiddleware)
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
@@ -77,18 +93,26 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content={"detail": exc.detail}
     )
 
-# Подключаем роутеры
+
 app.include_router(training_router)
 
-# Корневой маршрут - информация об API
 @app.get("/")
 def read_root():
     return {
-        "name": "Trainova Training Service API",
+        "name": "Trainova Workout Service API",
         "version": "1.0.0",
-        "description": "API для управления тренировками и упражнениями в приложении Trainova",
-        "docs_url": "/docs"
+        "description": "API для управления тренировками в приложении Trainova",
+        "docs_url": "/docs/api/workout"
     }
+
+
+@app.options("/{path:path}")
+async def options_handler(request: Request, path: str):
+    logger.info(f"Обработка OPTIONS запроса для пути: {path}")
+    return JSONResponse(
+        status_code=200,
+        content={"detail": "OK"}
+    )
 
 def custom_openapi():
     if app.openapi_schema:
@@ -115,28 +139,16 @@ app.openapi = custom_openapi
 async def startup_event():
     logger.info("Приложение запущено")
     db = Database()
-    try:
-        await db.connect()
-        logger.info("Соединение с базой данных установлено")
-    except Exception as e:
-        logger.error(f"Ошибка при подключении к базе данных: {str(e)}")
+    await db.connect()
+    logger.info("Соединение с базой данных установлено")
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    logger.info("Завершение работы приложения")
     db = Database()
-    try:
-        await db.disconnect()
-        logger.info("Соединение с базой данных закрыто")
-    except Exception as e:
-        logger.error(f"Ошибка при закрытии соединения с базой данных: {str(e)}")
-    
-    logger.info("Приложение остановлено")
+    await db.disconnect()
+    logger.info("Соединение с базой данных закрыто")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app", 
-        host=settings.SERVER_HOST, 
-        port=settings.SERVER_PORT, 
-        reload=settings.DEBUG
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
