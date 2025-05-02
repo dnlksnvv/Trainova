@@ -13,7 +13,6 @@ import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
 import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
-import SaveIcon from '@mui/icons-material/Save';
 import { motion, AnimatePresence } from 'framer-motion';
 import ExerciseImage from './ExerciseImage';
 import { workoutProgressApi, getCurrentUserId } from '@/app/services/api';
@@ -43,9 +42,11 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
   const [imageWidth, setImageWidth] = useState(320);
   const lastRepTimeRef = useRef<number>(0);
   const [animationPaused, setAnimationPaused] = useState(false);
-  const [showCompletionMessage, setShowCompletionMessage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [exerciseStartTime, setExerciseStartTime] = useState<number>(0);
+  const [autoNextProgress, setAutoNextProgress] = useState<number>(0);
+  const autoNextTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     currentExercise,
@@ -68,7 +69,7 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     },
     onExerciseTimeComplete: () => {
       console.log('Время упражнения истекло!');
-      setShowCompletionMessage(true);
+      // Ничего не делаем, всё будет через отображаемый счётчик
     }
   });
 
@@ -89,8 +90,11 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
       // Сбрасываем состояния при смене упражнения
       setCurrentReps(0);
       setInitialExerciseLoad(true);
-      setIsPaused(true); // Начинаем с паузы для любого типа упражнения
-      setAnimationPaused(false); // Но анимация всегда проигрывается
+      
+      // Готовим упражнение к запуску - запустится автоматически после загрузки GIF
+      // Устанавливаем режим воспроизведения, чтобы отсчет запустился
+      setIsPaused(false); 
+      setAnimationPaused(false); // Анимация всегда проигрывается
       
       if (hasReps) {
         // Для упражнений с повторениями
@@ -103,6 +107,9 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
       // При смене упражнения сбрасываем состояние загрузки
       setIsGifLoading(true);
       // Отсчет будет запущен после загрузки GIF в handleGifLoad
+      
+      // Обновляем время начала упражнения
+      setExerciseStartTime(Date.now());
     }
   }, [currentExercise?.id]);
 
@@ -150,11 +157,6 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
       timerRef.current = setTimeout(() => {
         const newTimeRemaining = timeRemaining - 1;
         setTimeRemaining(newTimeRemaining);
-        
-        // Если время истекло, показываем сообщение
-        if (newTimeRemaining === 0) {
-          setShowCompletionMessage(true);
-        }
       }, 1000);
     }
 
@@ -171,9 +173,15 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
       if (countdownRef.current) {
         clearTimeout(countdownRef.current);
+        countdownRef.current = null;
+      }
+      if (autoNextTimerRef.current) {
+        clearTimeout(autoNextTimerRef.current);
+        autoNextTimerRef.current = null;
       }
     };
   }, []);
@@ -188,69 +196,137 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
 
   // Переход к следующему упражнению
   const handleNext = () => {
-    // Сбрасываем сообщение о завершении
-    setShowCompletionMessage(false);
+    // Если идет отсчет, останавливаем его
+    if (showingCountdown) {
+      if (countdownRef.current) {
+        clearTimeout(countdownRef.current);
+        countdownRef.current = null;
+      }
+      setShowingCountdown(false);
+      setCountdownValue(null);
+    }
+
+    // Очищаем таймер автоматического перехода, если он есть
+    if (autoNextTimerRef.current) {
+      clearTimeout(autoNextTimerRef.current);
+      autoNextTimerRef.current = null;
+      setAutoNextProgress(0);
+    }
+
+    // Если это последнее упражнение, завершаем тренировку
+    if (exerciseIndex >= workout.exercises.length - 1) {
+      setIsCompleted(true);
+      setIsPaused(true);
+      return;
+    }
+
     // Добавляем задержку в 1 секунду перед переходом к следующему упражнению
     setTimeout(() => {
       nextExercise();
-      if (exerciseIndex >= workout.exercises.length - 1) {
-        setIsCompleted(true);
-        setIsPaused(true);
-      } else {
-        // Сбрасываем флаг для начального упражнения, чтобы отсчет показался для следующего упражнения
-        setInitialExerciseLoad(true);
-      }
+      // Сбрасываем флаг для начального упражнения, чтобы отсчет показался для следующего упражнения
+      setInitialExerciseLoad(true);
     }, 1000);
   };
 
   // Переход к предыдущему упражнению
   const handlePrevious = () => {
-    // Если это первое упражнение, просто сбрасываем его и перезапускаем отсчет
-    if (exerciseIndex === 0) {
-      // Сброс текущего упражнения
-      if (isRepBased) {
-        setCurrentReps(0);
+    // Если идет отсчет, останавливаем его
+    if (showingCountdown) {
+      if (countdownRef.current) {
+        clearTimeout(countdownRef.current);
+        countdownRef.current = null;
+      }
+      setShowingCountdown(false);
+      setCountdownValue(null);
+    }
+
+    // Очищаем таймер автоматического перехода, если он есть
+    if (autoNextTimerRef.current) {
+      clearTimeout(autoNextTimerRef.current);
+      autoNextTimerRef.current = null;
+      setAutoNextProgress(0);
+    }
+
+    const currentTime = Date.now();
+    const timeElapsed = currentTime - exerciseStartTime;
+    
+    // Для упражнений с таймером
+    if (!isRepBased) {
+      // Если прошло менее 2 секунд с начала упражнения, переходим к предыдущему
+      if (timeElapsed < 2000 && exerciseIndex > 0) {
+        prevExercise();
         setInitialExerciseLoad(true);
-        startCountdown();
       } else {
+        // Иначе сбрасываем текущее упражнение
         // Для упражнений с таймером
         if (currentExercise) {
           setTimeRemaining(currentExercise.duration);
-          // Сбрасываем сообщение о завершении времени
-          setShowCompletionMessage(false);
+          // Запускаем отсчет только если GIF уже загружен
+          if (!isGifLoading) {
+            startCountdown();
+          }
         }
-        setIsPaused(true);
+        setExerciseStartTime(Date.now()); // Обновляем время начала
       }
-    } else {
-      // Переходим к предыдущему упражнению
-      prevExercise();
-      setInitialExerciseLoad(true);
-      // Сбрасываем сообщение о завершении времени
-      setShowCompletionMessage(false);
+    } 
+    // Для упражнений с повторениями
+    else {
+      // Если выполнено не более 1 повторения и не первое упражнение, переходим к предыдущему
+      if (currentReps <= 1 && exerciseIndex > 0) {
+        prevExercise();
+        setInitialExerciseLoad(true);
+      } else {
+        // Иначе сбрасываем текущее упражнение
+        setCurrentReps(0);
+        setInitialExerciseLoad(true);
+        // Запускаем отсчет только если GIF уже загружен
+        if (!isGifLoading) {
+          startCountdown();
+        }
+        setExerciseStartTime(Date.now()); // Обновляем время начала
+      }
     }
   };
 
   // Переключение паузы - анимация всегда продолжает проигрываться
   const handleTogglePause = () => {
-    // Если идет отсчет, игнорируем нажатие
+    // Если идет отсчет, останавливаем отсчет и переходим в режим паузы
     if (showingCountdown) {
+      // Очищаем таймер отсчета
+      if (countdownRef.current) {
+        clearTimeout(countdownRef.current);
+        countdownRef.current = null;
+      }
+      setShowingCountdown(false);
+      setCountdownValue(null);
+      setIsPaused(true);
+      togglePause(); // Добавляем вызов togglePause(), чтобы синхронизировать состояние
       return;
     }
     
+    // Если GIF ещё загружается, просто запоминаем состояние паузы
     if (isGifLoading) {
-      console.log("GIF ещё загружается, нельзя запустить таймер");
+      console.log("GIF ещё загружается, запоминаем состояние паузы");
+      setIsPaused(prev => !prev);
+      togglePause(); // Добавляем вызов togglePause(), чтобы синхронизировать состояние
       return;
     }
     
-    // Для упражнений с повторениями, если мы нажимаем плей после паузы, запускаем отсчет
-    if (isRepBased && isPaused && !showingCountdown) {
+    // Если сейчас на паузе и нажимаем кнопку воспроизведения
+    if (isPaused) {
+      // Мгновенно изменяем состояние кнопки
+      setIsPaused(false);
+      togglePause(); // Добавляем вызов togglePause(), чтобы синхронизировать состояние
+      // Запускаем отсчет если нужно
       startCountdown();
       return;
+    } else {
+      // Если сейчас воспроизводится и нажимаем кнопку паузы
+      // Мгновенно ставим на паузу и обновляем состояние кнопки
+      setIsPaused(true);
+      togglePause();
+      return;
     }
-    
-    togglePause();
-    setIsPaused(prev => !prev);
-    // Не меняем состояние animationPaused, чтобы анимация продолжала проигрываться
   };
 
   // Увеличение количества повторений
@@ -263,7 +339,6 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
       if (newCount >= totalReps) {
         // Просто ставим на паузу, но не переходим автоматически к следующему упражнению
         setAnimationPaused(true);
-        setShowCompletionMessage(true);
       }
       return newCount;
     });
@@ -300,14 +375,23 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     console.log("GIF загружен");
     setIsGifLoading(false);
     
-    // Теперь, когда GIF загружен, можем начать отсчет
+    // Теперь, когда GIF загружен, можем начать отсчет, если это начальная загрузка
     if (initialExerciseLoad) {
       console.log('GIF загружен, начинаем отсчет');
       setTimeout(() => {
-        startCountdown();
+        // Запускаем отсчет для упражнений с повторениями только если не на паузе,
+        // а для упражнений на время запускаем всегда при первой загрузке
+        if (!isRepBased || !isPaused) {
+          startCountdown();
+        }
         setInitialExerciseLoad(false);
       }, 500);
+    } else {
+      setInitialExerciseLoad(false);
     }
+    
+    // Записываем время начала упражнения
+    setExerciseStartTime(Date.now());
   };
 
   // Обработчик ошибки загрузки GIF
@@ -343,7 +427,6 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
         if (newCount >= totalReps) {
           // Просто ставим на паузу, но не переходим автоматически к следующему упражнению
           setAnimationPaused(true);
-          setShowCompletionMessage(true);
         }
         return newCount;
       });
@@ -387,6 +470,60 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     }
   };
 
+  // Предотвращаем прокрутку страницы
+  useEffect(() => {
+    const preventScroll = (e: TouchEvent) => {
+      e.preventDefault();
+    };
+
+    // Добавляем обработчик события для всего документа
+    document.addEventListener('touchmove', preventScroll, { passive: false });
+
+    // Убираем обработчик при размонтировании компонента
+    return () => {
+      document.removeEventListener('touchmove', preventScroll);
+    };
+  }, []);
+
+  // Добавляю функцию для автоматического перехода к следующему упражнению
+  const startAutoNextTimer = () => {
+    // Очищаем предыдущий таймер, если он существует
+    if (autoNextTimerRef.current) {
+      clearTimeout(autoNextTimerRef.current);
+      autoNextTimerRef.current = null;
+    }
+    
+    setAutoNextProgress(0);
+    
+    // Запускаем интервал для обновления прогресса
+    let startTime = Date.now();
+    const totalDuration = 3000; // 3 секунды
+    
+    const updateProgress = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min((elapsed / totalDuration) * 100, 100);
+      setAutoNextProgress(progress);
+      
+      if (progress < 100) {
+        autoNextTimerRef.current = setTimeout(updateProgress, 50);
+      } else {
+        // Когда прогресс достиг 100%, переходим к следующему упражнению
+        handleNext();
+      }
+    };
+    
+    autoNextTimerRef.current = setTimeout(updateProgress, 50);
+  };
+
+  // Добавляем эффект для запуска таймера автоперехода при завершении упражнения
+  useEffect(() => {
+    // Запускаем таймер автоперехода, когда упражнение завершено (время истекло или все повторения выполнены)
+    if (!isGifLoading && !showingCountdown && !isPaused && 
+        ((isRepBased && currentReps >= totalReps) || (!isRepBased && timeRemaining === 0))) {
+      startAutoNextTimer();
+    }
+  }, [isGifLoading, showingCountdown, isPaused, isRepBased, currentReps, totalReps, timeRemaining]);
+
   // Отображение завершения тренировки
   if (isCompleted) {
     return (
@@ -399,7 +536,15 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
           flexDirection: 'column',
           justifyContent: 'center',
           alignItems: 'center',
-          bgcolor: 'backgrounds.default'
+          bgcolor: 'backgrounds.default',
+          overflow: 'hidden', // Предотвращаем прокрутку
+          position: 'fixed', // Фиксируем контейнер
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100%', // Гарантируем полную ширину
+          zIndex: 1200 // Убеждаемся, что экран заверешения поверх всего
         }}
       >
         <Paper 
@@ -479,15 +624,35 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
   }
 
   return (
-    <Container maxWidth="sm" disableGutters sx={{ height: '100%' }}>
+    <Container 
+      maxWidth="sm" 
+      disableGutters 
+      sx={{ 
+        height: '100vh', // Занимаем полную высоту экрана
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden', // Предотвращаем прокрутку
+        position: 'fixed', // Фиксируем контейнер
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%', // Гарантируем полную ширину
+        maxWidth: '100%', // Переопределяем стандартный maxWidth контейнера
+        margin: '0 auto' // Центрируем контейнер
+      }}
+    >
       {/* Верхняя панель */}
       <Box sx={{ 
-        p: 2,
+        p: 1.5, // Уменьшаем отступы
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         borderBottom: '1px solid',
-        borderColor: 'divider'
+        borderColor: 'divider',
+        flexShrink: 0, // Не разрешаем сжиматься при нехватке места
+        width: '100%', // Фиксированная ширина
+        overflow: 'hidden' // Предотвращаем прокрутку
       }}>
         <IconButton color="inherit" onClick={() => router.push("/trainings")}>
           <ArrowBackIcon />
@@ -505,26 +670,33 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
         )}
       </Box>
 
-      <Box sx={{ px: 2, py: 1 }}>
+      {/* Индикатор прогресса (точки) и название упражнения */}
+      <Box sx={{ 
+        px: 2, 
+        py: 1.5,  // Уменьшаем вертикальные отступы
+        flexShrink: 0, // Не разрешаем сжиматься
+        width: '100%', // Фиксированная ширина
+        overflow: 'hidden' // Предотвращаем прокрутку
+      }}>
         {/* Индикатор прогресса (точки) */}
         <Box sx={{ 
           display: 'flex',
           justifyContent: 'center', 
-          gap: 1,
-          mb: 2
+          gap: 0.5,
+          mb: 0.5 // Еще меньше отступ снизу
         }}>
           {Array.from({ length: totalExercises }).map((_, i) => (
             <Box
               component={motion.div}
               key={i}
-              initial={{ width: '8px' }}
+              initial={{ width: '6px' }}
               animate={{ 
-                width: i === exerciseIndex ? '32px' : '8px'
+                width: i === exerciseIndex ? '24px' : '6px'
               }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
               sx={{
-                height: '8px',
-                borderRadius: '4px',
+                height: '6px',
+                borderRadius: '3px',
                 bgcolor: i <= exerciseIndex ? 'highlight.main' : 'backgrounds.paper'
               }}
             />
@@ -532,362 +704,432 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
         </Box>
 
         {/* Название упражнения */}
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+        <Box sx={{ textAlign: 'center', mb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
             {currentExercise?.name || 'Загрузка...'}
           </Typography>
         </Box>
       </Box>
 
       {/* Основной контент */}
-      <Box sx={{ px: { xs: 2, sm: 4 } }}>
-        {/* Изображение упражнения с фиксированным соотношением сторон */}
-        <Box 
-          ref={imageContainerRef}
-          sx={{ 
-            width: '100%',
-            aspectRatio: '1/1',
-            borderRadius: 2,
-            overflow: 'hidden',
-            boxShadow: 1,
-            mb: 4,
-            mx: 'auto',
-            bgcolor: 'background.paper',
-            position: 'relative'
-          }}
-        >
-          {/* Слой для отображения отсчета */}
-          <AnimatePresence>
-            {showingCountdown && countdownValue !== null && (
-              <Box
-                component={motion.div}
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.5 }}
-                key={countdownValue}
-                sx={{
+      <Box sx={{ 
+        px: { xs: 2, sm: 4 },
+        display: 'flex', 
+        flexDirection: 'column',
+        flex: 1, // Занимает оставшееся пространство
+        overflow: 'hidden', // Предотвращает прокрутку
+        justifyContent: 'space-between', // Распределяет содержимое равномерно
+        width: '100%', // Фиксированная ширина
+        position: 'relative' // Для правильного позиционирования дочерних элементов
+      }}>
+        {/* Блок с изображением - занимает доступное пространство */}
+        <Box sx={{ 
+          flex: 1, // Занимает доступное пространство
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          minHeight: 0, // Важно для корректного расчета flexbox в Safari
+          position: 'relative', 
+          mb: 2, // Минимальный отступ снизу
+          overflow: 'hidden', // Предотвращает прокрутку
+          width: '100%' // Гарантирует полную ширину
+        }}>
+          {/* Изображение упражнения с динамическим размером */}
+          <Box 
+            ref={imageContainerRef}
+            sx={{ 
+              width: '100%',
+              maxHeight: '100%', // Ограничиваем максимальную высоту
+              aspectRatio: '1/1',
+              borderRadius: 2,
+              overflow: 'hidden',
+              boxShadow: 1,
+              mx: 'auto',
+              bgcolor: 'common.black', // Меняем на белый фон
+              position: 'relative',
+              display: 'flex',     // Добавляем flex для центрирования
+              justifyContent: 'center', // Центрирование по горизонтали
+              alignItems: 'center'  // Центрирование по вертикали
+            }}
+          >
+            {/* Слой для отображения отсчета */}
+            <AnimatePresence>
+              {showingCountdown && countdownValue !== null && (
+                <Box
+                  component={motion.div}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.5 }}
+                  key={countdownValue}
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'rgba(0, 0, 0, 0.7)',
+                    zIndex: 10,
+                    borderRadius: 2
+                  }}
+                >
+                  <Typography 
+                    variant="h1" 
+                    component={motion.h1}
+                    initial={{ scale: 1.5 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.8 }}
+                    sx={{ 
+                      color: 'highlight.main', 
+                      fontWeight: 'bold',
+                      textShadow: '0 0 10px rgba(255, 140, 0, 0.6)',
+                      fontSize: { xs: '4rem', sm: '5rem' } // Адаптивный размер шрифта
+                    }}
+                  >
+                    {countdownValue}
+                  </Typography>
+                </Box>
+              )}
+            </AnimatePresence>
+
+            {/* Слой для отображения сообщения о завершении времени */}
+            <AnimatePresence>
+              {!isRepBased && !isGifLoading && timeRemaining === 0 && (
+                <Box
+                  component={motion.div}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  sx={{
+                    position: 'absolute',
+                    bottom: 20,
+                    left: 20,
+                    right: 20,
+                    padding: 2,
+                    bgcolor: 'rgba(255, 140, 0, 0.9)',
+                    borderRadius: 2,
+                    zIndex: 10,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      color: 'white', 
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      mb: 1
+                    }}
+                  >
+                    Время истекло!
+                  </Typography>
+                  <Box sx={{ width: '100%', mb: 1.5 }}>
+                    <Box sx={{ 
+                      bgcolor: 'rgba(255, 255, 255, 0.3)', 
+                      height: '4px', 
+                      borderRadius: '2px', 
+                      width: '100%',
+                      overflow: 'hidden',
+                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                    }}>
+                      <Box
+                        component={motion.div}
+                        initial={{ width: "0%" }}
+                        animate={{ width: `${autoNextProgress}%` }}
+                        sx={{
+                          bgcolor: 'white',
+                          height: '100%'
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    onClick={handleNext}
+                    sx={{
+                      bgcolor: 'white',
+                      color: 'highlight.main',
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.9)'
+                      }
+                    }}
+                  >
+                    Следующее упражнение
+                  </Button>
+                </Box>
+              )}
+            </AnimatePresence>
+
+            {/* Слой для отображения сообщения о завершении повторений */}
+            <AnimatePresence>
+              {isRepBased && !isGifLoading && currentReps >= totalReps && (
+                <Box
+                  component={motion.div}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  sx={{
+                    position: 'absolute',
+                    bottom: 20,
+                    left: 20,
+                    right: 20,
+                    padding: 2,
+                    bgcolor: 'rgba(255, 140, 0, 0.9)',
+                    borderRadius: 2,
+                    zIndex: 10,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      color: 'white', 
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      mb: 1
+                    }}
+                  >
+                    Повторения выполнены!
+                  </Typography>
+                  <Box sx={{ width: '100%', mb: 1.5 }}>
+                    <Box sx={{ 
+                      bgcolor: 'rgba(255, 255, 255, 0.3)', 
+                      height: '4px', 
+                      borderRadius: '2px', 
+                      width: '100%',
+                      overflow: 'hidden',
+                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                    }}>
+                      <Box
+                        component={motion.div}
+                        initial={{ width: "0%" }}
+                        animate={{ width: `${autoNextProgress}%` }}
+                        sx={{
+                          bgcolor: 'white',
+                          height: '100%'
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    onClick={handleNext}
+                    sx={{
+                      bgcolor: 'white',
+                      color: 'highlight.main',
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.9)'
+                      }
+                    }}
+                  >
+                    Следующее упражнение
+                  </Button>
+                </Box>
+              )}
+            </AnimatePresence>
+
+            {/* Слой индикации паузы */}
+            <AnimatePresence>
+              {isPaused && !showingCountdown && !isGifLoading && (
+                <Box
+                  component={motion.div}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  sx={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    bgcolor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 5
+                  }}
+                >
+                  <PauseIcon sx={{ color: 'white', fontSize: '20px' }} />
+                </Box>
+              )}
+            </AnimatePresence>
+
+            {currentExercise ? (
+              <Box 
+                sx={{ 
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   right: 0,
                   bottom: 0,
                   display: 'flex',
-                  alignItems: 'center',
                   justifyContent: 'center',
-                  bgcolor: 'rgba(0, 0, 0, 0.7)',
-                  zIndex: 10,
-                  borderRadius: 2
-                }}
-              >
-                <Typography 
-                  variant="h1" 
-                  component={motion.h1}
-                  initial={{ scale: 1.5 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.8 }}
-                  sx={{ 
-                    color: 'highlight.main', 
-                    fontWeight: 'bold',
-                    textShadow: '0 0 10px rgba(255, 140, 0, 0.6)'
-                  }}
-                >
-                  {countdownValue}
-                </Typography>
-              </Box>
-            )}
-          </AnimatePresence>
-
-          {/* Слой для отображения сообщения о завершении времени */}
-          <AnimatePresence>
-            {!isRepBased && (timeRemaining === 0 || isTimeComplete) && showCompletionMessage && (
-              <Box
-                component={motion.div}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                sx={{
-                  position: 'absolute',
-                  bottom: 20,
-                  left: 20,
-                  right: 20,
-                  padding: 2,
-                  bgcolor: 'rgba(255, 140, 0, 0.9)',
-                  borderRadius: 2,
-                  zIndex: 10,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center'
-                }}
-              >
-                <Typography 
-                  variant="h6" 
-                  sx={{ 
-                    color: 'white', 
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    mb: 1
-                  }}
-                >
-                  Время истекло!
-                </Typography>
-                <Button
-                  variant="contained"
-                  onClick={handleNext}
-                  sx={{
-                    bgcolor: 'white',
-                    color: 'highlight.main',
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.9)'
-                    }
-                  }}
-                >
-                  Следующее упражнение
-                </Button>
-              </Box>
-            )}
-          </AnimatePresence>
-
-          {/* Слой для отображения сообщения о завершении повторений */}
-          <AnimatePresence>
-            {isRepBased && currentReps >= totalReps && showCompletionMessage && (
-              <Box
-                component={motion.div}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                sx={{
-                  position: 'absolute',
-                  bottom: 20,
-                  left: 20,
-                  right: 20,
-                  padding: 2,
-                  bgcolor: 'rgba(255, 140, 0, 0.9)',
-                  borderRadius: 2,
-                  zIndex: 10,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center'
-                }}
-              >
-                <Typography 
-                  variant="h6" 
-                  sx={{ 
-                    color: 'white', 
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    mb: 1
-                  }}
-                >
-                  Повторения выполнены!
-                </Typography>
-                <Button
-                  variant="contained"
-                  onClick={handleNext}
-                  sx={{
-                    bgcolor: 'white',
-                    color: 'highlight.main',
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.9)'
-                    }
-                  }}
-                >
-                  Следующее упражнение
-                </Button>
-              </Box>
-            )}
-          </AnimatePresence>
-
-          {/* Слой индикации паузы */}
-          <AnimatePresence>
-            {isPaused && !showingCountdown && !isGifLoading && (
-              <Box
-                component={motion.div}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                sx={{
-                  position: 'absolute',
-                  top: 10,
-                  right: 10,
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  bgcolor: 'rgba(0, 0, 0, 0.7)',
-                  display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 5
+                  width: '100%',
+                  height: '100%'
                 }}
               >
-                <PauseIcon sx={{ color: 'white', fontSize: '20px' }} />
+                <ExerciseImage 
+                  currentExercise={currentExercise} 
+                  isPaused={animationPaused || showingCountdown} 
+                  autoPlay={true}
+                  startAnimation={!showingCountdown}
+                  isCountdownActive={showingCountdown}
+                  onLoad={handleGifLoad}
+                  onError={handleGifError}
+                  onFrameComplete={handleFrameComplete}
+                  onFrameChange={handleFrameChange}
+                />
+              </Box>
+            ) : (
+              <Box sx={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Typography>Загрузка упражнения...</Typography>
               </Box>
             )}
-          </AnimatePresence>
-
-          {currentExercise ? (
-            <ExerciseImage 
-              currentExercise={currentExercise} 
-              isPaused={animationPaused || showingCountdown} // Обновленная логика паузы
-              autoPlay={true}
-              startAnimation={!showingCountdown}
-              isCountdownActive={showingCountdown} // Передаем состояние отсчета
-              onLoad={handleGifLoad}
-              onError={handleGifError}
-              onFrameComplete={handleFrameComplete}
-              onFrameChange={handleFrameChange}
-            />
-          ) : (
-            <Box sx={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Typography>Загрузка упражнения...</Typography>
-            </Box>
-          )}
-        </Box>
-
-        {/* Таймер или Счетчик повторений */}
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          {isRepBased ? (
-            <>
-              <Typography variant="h3" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Box component="span" sx={{ color: 'highlight.main' }}>{currentReps}</Box>
-                <Box component="span" sx={{ mx: 1 }}>/</Box>
-                <Box component="span">{totalReps}</Box>
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'textColors.secondary', mt: 0.5 }}>
-                повторений
-              </Typography>
-              {/* Информация о кадрах */}
-              {!isGifLoading && totalFrames > 0 && (
-                <Typography variant="body2" sx={{ color: 'textColors.secondary', mt: 1 }}>
-                  Кадр: {currentFrame}/{totalFrames}
-                </Typography>
-              )}
-            </>
-          ) : (
-            <>
-              <Typography variant="h3" sx={{ 
-                fontWeight: 'bold',
-                color: isTimeComplete ? 'highlight.main' : 'inherit'
-              }}>
-                {formatTime(timeRemaining)}
-              </Typography>
-              <Typography variant="body1" sx={{ 
-                color: isTimeComplete ? 'highlight.main' : 'textColors.secondary', 
-                mt: 0.5,
-                fontWeight: isTimeComplete ? 'bold' : 'normal'
-              }}>
-                {isTimeComplete ? 'Время истекло!' : 'осталось'}
-              </Typography>
-              {/* Информация о кадрах */}
-              {!isGifLoading && totalFrames > 0 && (
-                <Typography variant="body2" sx={{ color: 'textColors.secondary', mt: 1 }}>
-                  Кадр: {currentFrame}/{totalFrames}
-                </Typography>
-              )}
-            </>
-          )}
-        </Box>
-
-        {/* Индикатор прогресса упражнения */}
-        <Box sx={{ mb: 3 }}>
-          <Box sx={{ 
-            bgcolor: 'backgrounds.paper', 
-            height: '6px', 
-            borderRadius: '3px', 
-            width: '100%',
-            overflow: 'hidden',
-            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
-          }}>
-            <Box
-              component={motion.div}
-              initial={{ width: "0%" }}
-              animate={{ width: `${progress}%` }}
-              transition={{ type: "spring", stiffness: 100, damping: 30 }}
-              sx={{
-                bgcolor: 'highlight.main',
-                height: '100%'
-              }}
-            />
           </Box>
         </Box>
 
-        {/* Кнопки управления */}
-        <Grid 
-          container 
-          justifyContent="center" 
-          alignItems="center" 
-          spacing={2} 
-          sx={{ mb: 4 }}
-        >
-          <Grid item>
-            <IconButton 
-              onClick={handlePrevious}
-              disabled={isGifLoading || showingCountdown}
-              sx={{ 
-                width: 56,
-                height: 56,
-                borderRadius: 2,
-                bgcolor: 'transparent',
-                border: 1,
-                borderColor: 'action.disabled',
-                color: 'textColors.primary',
-                '&:disabled': {
-                  opacity: 0.5
-                }
-              }}
-            >
-              <SkipPreviousIcon fontSize="large" />
-            </IconButton>
+        {/* Нижняя часть - таймер, прогресс и кнопки */}
+        <Box sx={{ 
+          flexShrink: 0, // Не разрешаем сжиматься
+          mb: 15, // Значительно увеличиваем отступ от нижнего края экрана (было 2)
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
+        }}>
+          {/* Таймер или Счетчик повторений */}
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            {isRepBased ? (
+              <>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Box component="span" sx={{ color: 'highlight.main' }}>{currentReps}</Box>
+                  <Box component="span" sx={{ mx: 0.5 }}>/</Box>
+                  <Box component="span">{totalReps}</Box>
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'textColors.secondary' }}>
+                  повторений
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 'bold',
+                  color: (!isGifLoading && timeRemaining === 0) ? 'highlight.main' : 'inherit'
+                }}>
+                  {formatTime(timeRemaining)}
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: (!isGifLoading && timeRemaining === 0) ? 'highlight.main' : 'textColors.secondary', 
+                  mt: 0,
+                  fontWeight: (!isGifLoading && timeRemaining === 0) ? 'bold' : 'normal'
+                }}>
+                  {(!isGifLoading && timeRemaining === 0) ? 'Время истекло!' : 'осталось'}
+                </Typography>
+              </>
+            )}
+          </Box>
+
+          {/* Индикатор прогресса упражнения */}
+          <Box sx={{ mb: 1.5, width: '100%' }}>
+            <Box sx={{ 
+              bgcolor: 'backgrounds.paper', 
+              height: '4px', 
+              borderRadius: '2px', 
+              width: '100%',
+              overflow: 'hidden',
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+            }}>
+              <Box
+                component={motion.div}
+                initial={{ width: "0%" }}
+                animate={{ width: `${progress}%` }}
+                transition={{ type: "spring", stiffness: 100, damping: 30 }}
+                sx={{
+                  bgcolor: 'highlight.main',
+                  height: '100%'
+                }}
+              />
+            </Box>
+          </Box>
+
+          {/* Кнопки управления */}
+          <Grid 
+            container 
+            justifyContent="center" 
+            alignItems="center" 
+            spacing={1}
+          >
+            <Grid item>
+              <IconButton 
+                onClick={handlePrevious}
+                sx={{ 
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  bgcolor: 'transparent',
+                  border: 1,
+                  borderColor: 'action.disabled',
+                  color: 'textColors.primary',
+                  opacity: 1
+                }}
+              >
+                <SkipPreviousIcon />
+              </IconButton>
+            </Grid>
+            <Grid item>
+              <IconButton 
+                onClick={handleTogglePause}
+                sx={{ 
+                  width: 60,
+                  height: 60,
+                  borderRadius: 2,
+                  bgcolor: isPaused ? 'action.disabledBackground' : 'highlight.main',
+                  color: isPaused ? 'textColors.primary' : 'common.white',
+                  boxShadow: 2,
+                  '&:hover': {
+                    bgcolor: isPaused ? 'action.disabledBackground' : 'highlight.dark'
+                  },
+                  opacity: 1
+                }}
+              >
+                {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
+              </IconButton>
+            </Grid>
+            <Grid item>
+              <IconButton 
+                onClick={handleNext}
+                disabled={exerciseIndex === totalExercises - 1} // Оставляем блокировку только для последнего упражнения
+                sx={{ 
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  bgcolor: 'transparent',
+                  border: 1,
+                  borderColor: 'action.disabled',
+                  color: 'textColors.primary',
+                  '&:disabled': {
+                    opacity: 0.5
+                  }
+                }}
+              >
+                <SkipNextIcon />
+              </IconButton>
+            </Grid>
           </Grid>
-          <Grid item>
-            {/* Для всех типов упражнений используем кнопку паузы/воспроизведения */}
-            <IconButton 
-              onClick={handleTogglePause}
-              disabled={isGifLoading || showingCountdown}
-              sx={{ 
-                width: 72,
-                height: 72,
-                borderRadius: 2,
-                bgcolor: (isGifLoading || showingCountdown) ? 'action.disabledBackground' : 'highlight.main',
-                color: 'common.white',
-                boxShadow: 2,
-                '&:hover': {
-                  bgcolor: (isGifLoading || showingCountdown) ? 'action.disabledBackground' : 'highlight.dark'
-                },
-                '&:disabled': {
-                  opacity: 0.7
-                }
-              }}
-            >
-              {isPaused || showingCountdown ? <PlayArrowIcon fontSize="large" /> : <PauseIcon fontSize="large" />}
-            </IconButton>
-          </Grid>
-          <Grid item>
-            <IconButton 
-              onClick={handleNext}
-              disabled={exerciseIndex === totalExercises - 1 || isGifLoading || showingCountdown}
-              sx={{ 
-                width: 56,
-                height: 56,
-                borderRadius: 2,
-                bgcolor: 'transparent',
-                border: 1,
-                borderColor: 'action.disabled',
-                color: 'textColors.primary',
-                '&:disabled': {
-                  opacity: 0.5
-                }
-              }}
-            >
-              <SkipNextIcon fontSize="large" />
-            </IconButton>
-          </Grid>
-        </Grid>
+        </Box>
       </Box>
 
       {/* Модальное окно с описанием упражнения */}

@@ -18,11 +18,10 @@ import {
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 
-// Интерфейс Exercise, совместимый с client.tsx
+
 interface Exercise {
   id: number | string;
   name: string;
@@ -93,7 +92,7 @@ const ExerciseGroupsList: React.FC<ExerciseGroupsListProps> = ({
           <Paper
             elevation={0}
             sx={{ 
-              bgcolor: '#333333', // Темный фон как на скриншоте
+              bgcolor: '#333333', 
               mx: 2,
               borderRadius: 2,
               overflow: 'hidden',
@@ -141,7 +140,7 @@ const ExerciseGroupsList: React.FC<ExerciseGroupsListProps> = ({
                 variant="body1" 
                 sx={{ 
                   color: theme.palette.textColors?.secondary,
-                  pl: 6, // Увеличенный отступ слева для визуальной вложенности
+                  pl: 6, 
                   py: 2
                 }}
               >
@@ -154,7 +153,7 @@ const ExerciseGroupsList: React.FC<ExerciseGroupsListProps> = ({
                     key={exercise.id}
                     elevation={0}
                     sx={{ 
-                      bgcolor: '#3a3a3a', // Немного светлее, чем группа
+                      bgcolor: '#3a3a3a',
                       borderRadius: 2,
                       mb: 1,
                       overflow: 'hidden',
@@ -164,7 +163,7 @@ const ExerciseGroupsList: React.FC<ExerciseGroupsListProps> = ({
                         transform: 'translateY(-2px)',
                         boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
                       },
-                      // Дополнительный стиль для визуального выделения вложенности
+                     
                       borderLeft: `4px solid ${theme.palette.highlight?.main || '#FFA500'}`
                     }}
                     onClick={() => onSelectExercise(exercise)}

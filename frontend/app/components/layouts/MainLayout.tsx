@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Container,
@@ -26,10 +26,33 @@ import { useAuth } from "@/app/auth/hooks/useAuth";
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [navValue, setNavValue] = React.useState("home");
   const [logoutDialogOpen, setLogoutDialogOpen] = React.useState(false);
+  const [pageLoaded, setPageLoaded] = useState(false);
+  const [currentPath, setCurrentPath] = useState("");
   
   const router = useRouter();
   const { user, loading, logout } = useAuth();
   const theme = useTheme();
+
+  // Устанавливаем начальное значение после монтирования
+  useEffect(() => {
+    // Устанавливаем текущий путь
+    const pathname = window.location.pathname;
+    setCurrentPath(pathname);
+    
+    // Устанавливаем активный таб на основе текущего пути
+    if (pathname === "/") {
+      setNavValue("home");
+    } else if (pathname === "/profile") {
+      setNavValue("profile");
+    } else if (pathname === "/trainings") {
+      setNavValue("blockA");
+    }
+    
+    // Устанавливаем pageLoaded в true после первого рендера
+    setTimeout(() => {
+      setPageLoaded(true);
+    }, 100);
+  }, []);
 
   // Если пользователь не авторизован и не в процессе загрузки, 
   // перенаправляем на страницу входа
@@ -40,17 +63,37 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }, [loading, user, router]);
 
   const handleNavChange = (_event: React.SyntheticEvent, newValue: string) => {
+    // Если уже находимся на этой странице, не делаем ничего
+    if (navValue === newValue) {
+      return;
+    }
+    
     setNavValue(newValue);
+    setPageLoaded(false);
     
     // Навигация в зависимости от выбранного пункта
+    let targetPath = "/";
     if (newValue === "home") {
-      router.push("/");
+      targetPath = "/";
     } else if (newValue === "profile") {
-      router.push("/profile");
+      targetPath = "/profile";
     } else if (newValue === "blockA") {
-      router.push("/trainings");
+      targetPath = "/trainings";
     }
-    // Добавьте другие маршруты при необходимости
+    
+    // Проверяем, изменился ли путь
+    if (targetPath !== currentPath) {
+      setCurrentPath(targetPath);
+      router.push(targetPath);
+      
+      // После навигации устанавливаем задержку для имитации завершения загрузки
+      setTimeout(() => {
+        setPageLoaded(true);
+      }, 300);
+    } else {
+      // Если путь тот же, просто обновляем состояние
+      setPageLoaded(true);
+    }
   };
 
   const handleLogout = async () => {
@@ -92,7 +135,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         flexDirection: "column",
         minHeight: "100vh",
         // Фон всего приложения
-        bgcolor: theme.palette.backgrounds?.default, // "#2b2b2b"
+        bgcolor: theme.palette.backgrounds?.default, 
       }}
     >
       {/* Основная область (контент) */}
@@ -117,7 +160,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           left: 0,
           right: 0,
           // Фон нижней панели
-          bgcolor: theme.palette.backgrounds?.paper, // "#3a3a3a"
+          bgcolor: theme.palette.highlight?.main, 
+          borderTopLeftRadius: 12,
+          borderTopRightRadius: 12,
+          paddingBottom: "0px", 
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          height: "70px",
         }}
         elevation={8}
       >
@@ -126,14 +176,21 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           value={navValue}
           onChange={handleNavChange}
           sx={{
-            // Цвет текста пунктов
             color: theme.palette.textColors?.primary,
+            bgcolor: theme.palette.highlight?.main,
+            height: "100%", 
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+            "& .MuiBottomNavigationAction-root": {
+              marginTop: "-5px", 
+              padding: "12px 0 16px", 
+              height: "100%", 
+            }
           }}
         >
           <BottomNavigationAction
             value="home"
             sx={{
-              // Цвет подписи
               color: theme.palette.textColors?.primary,
               "&.Mui-selected": {
                 color: theme.palette.textColors?.primary,
@@ -142,10 +199,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             icon={
               <HomeIcon
                 sx={{
-                  // Цвет иконки
-                  color: theme.palette.highlight?.main, // "#FF8C00"
+                  color: navValue === "home" && pageLoaded 
+                    ? theme.palette.textColors?.primary 
+                    : theme.palette.backgrounds?.default, 
+                  fontSize: "28px",
                   "&.Mui-selected": {
-                    color: theme.palette.highlight?.main,
+                    color: theme.palette.backgrounds?.default,
                   },
                 }}
               />
@@ -162,9 +221,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             icon={
               <FitnessCenterIcon
                 sx={{
-                  color: theme.palette.highlight?.main,
+                  color: navValue === "blockA" && pageLoaded 
+                    ? theme.palette.textColors?.primary 
+                    : theme.palette.backgrounds?.default,
+                  transform: 'scaleX(-1)', 
+                  fontSize: "28px",
                   "&.Mui-selected": {
-                    color: theme.palette.highlight?.main,
+                    color: theme.palette.backgrounds?.default,
                   },
                 }}
               />
@@ -181,9 +244,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             icon={
               <AppsIcon
                 sx={{
-                  color: theme.palette.highlight?.main,
+                  color: navValue === "blockB" && pageLoaded 
+                    ? theme.palette.textColors?.primary 
+                    : theme.palette.backgrounds?.default,
+                  fontSize: "28px",
                   "&.Mui-selected": {
-                    color: theme.palette.highlight?.main,
+                    color: theme.palette.backgrounds?.default,
                   },
                 }}
               />
@@ -200,9 +266,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             icon={
               <PersonIcon
                 sx={{
-                  color: theme.palette.highlight?.main,
+                  color: navValue === "profile" && pageLoaded 
+                    ? theme.palette.textColors?.primary 
+                    : theme.palette.backgrounds?.default,
+                  fontSize: "28px",
                   "&.Mui-selected": {
-                    color: theme.palette.highlight?.main,
+                    color: theme.palette.backgrounds?.default,
                   },
                 }}
               />

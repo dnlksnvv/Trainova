@@ -1,6 +1,5 @@
 import { createTheme } from "@mui/material/styles";
 
-// Расширяем интерфейс (только если TypeScript ругается на наши поля)
 declare module "@mui/material/styles" {
   interface Palette {
     textColors?: {
@@ -9,14 +8,14 @@ declare module "@mui/material/styles" {
       workouts: string;
     };
     highlight?: {
-      main: string;  // основной «выделяющийся» цвет (например, оранжевый)
-      accent: string; // дополнительный
+      main: string;  // основной «выделяющийся» цвет
+      accent: string; 
     };
     backgrounds?: {
       default2: string; 
       default: string; 
       paper: string;
-      // можно добавить другие «слои»
+      
     };
     iconColors?: {
       main: string;
@@ -26,7 +25,7 @@ declare module "@mui/material/styles" {
       pink: string;
       green: string;
       blue: string;
-      // ... если нужно ещё
+      
     };
   }
   interface PaletteOptions {
@@ -58,12 +57,12 @@ declare module "@mui/material/styles" {
 
 const theme = createTheme({
   palette: {
-    mode: "dark", // или "light" - по умолчанию
+    mode: "dark", 
     // ТЕКСТ
     textColors: {
       primary: "#fff",
       secondary: "#ccc",
-      workouts: "#64b5f6", // <-- добавляем голубой
+      workouts: "#64b5f6", 
     },
     // ВЫДЕЛЕНИЯ (например, оранжевые)
     highlight: {
@@ -76,12 +75,12 @@ const theme = createTheme({
       default: "#2b2b2b",
       paper: "#3a3a3a",
     },
-    // ЦВЕТА ИКОНОК (пример)
+    // ЦВЕТА ИКОНОК 
     iconColors: {
       main: "#888",
       secondary: "#999",
     },
-    // ЦВЕТА для «мышц» (или других элементов)
+    // ЦВЕТА для «мышц» 
     muscleColors: {
       pink: "#FF8080",
       green: "#81c784",
