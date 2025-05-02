@@ -2,45 +2,88 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - develop
+      - feature/*
+      - bugfix/*
     paths:
       - 'backend/**'
+      - '.github/workflows/**'
+
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - develop
+      - feature/*
+      - bugfix/*
     paths:
       - 'backend/**'
+      - '.github/workflows/**'
 
 jobs:
-  build:
+  test:
+    name: 🔁 Run tests for backend services
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
 
     steps:
-      - uses: actions/checkout@v3
+      - name: 📥 Checkout code
+        uses: actions/checkout@v3
 
-      - name: Setup Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies for all services
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install pytest
+          for service in auth_service workout_service; do
+            pip install -r backend/$service/requirements.txt
+          done
 
-      - name: Run tests
+      - name: 🔑 Setup SSH key
         run: |
-          pytest
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-      - name: Build
+      - name: 📥 Download shared .env file from remote server
         run: |
-          echo "Build backend"
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/home/user1/Trainova/docker/.env .env
 
-      - name: Deploy
-        if: github.ref == 'refs/heads/main'
+      - name: ✅ Run pytest for all backend services
         run: |
-          echo "Deploy backend"
-          # Здесь будут команды для деплоя 
+          for service in auth_service workout_service; do
+            echo "Running tests for $service"
+            cp .env backend/$service/.env
+            cd backend/$service
+            pytest
+            cd - > /dev/null
+          done
+
+  deploy:
+    name: 🚀 Deploy on merge to develop
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push' && github.actor != 'github-actions[bot]'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🔑 Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: 📥 Download shared .env file from remote server
+        run: |
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/home/user1/Trainova/docker/.env .env
+
+      - name: 🚀 Run Docker Compose for deployment
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "cd /home/user1/Trainova/docker && docker-compose down && docker-compose build --no-cache && docker-compose up -d"
