@@ -1,4 +1,4 @@
-name: Backend CI
+name: Backend CI/CD
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: 📥 Download shared .env from remote
+      - name: 📥 Download .env from remote
         run: |
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/home/${{ secrets.SSH_USER }}/Trainova/docker/.env .env
@@ -64,10 +64,11 @@ jobs:
           done
 
   deploy:
-    name: 🚀 Deploy backend (on develop)
+    name: 🚀 Deploy to Server
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: |
+      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') && github.event_name == 'push'
 
     steps:
       - name: 📥 Checkout code
