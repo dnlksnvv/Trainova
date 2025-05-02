@@ -1,4 +1,4 @@
-name: Backend CI/CD
+name: Backend CI
 
 on:
   push:
@@ -48,10 +48,10 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: 📥 Download shared .env file from remote server
+      - name: 📥 Download shared .env from remote
         run: |
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/home/user1/Trainova/docker/.env .env
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/home/${{ secrets.SSH_USER }}/Trainova/docker/.env .env
 
       - name: ✅ Run pytest for all backend services
         run: |
@@ -64,9 +64,10 @@ jobs:
           done
 
   deploy:
-    name: 🚀 Deploy on merge to develop
+    name: 🚀 Deploy backend (on develop)
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push' && github.actor != 'github-actions[bot]'
+    needs: test
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
 
     steps:
       - name: 📥 Checkout code
@@ -78,12 +79,20 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: 📥 Download shared .env file from remote server
-        run: |
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/home/user1/Trainova/docker/.env .env
-
-      - name: 🚀 Run Docker Compose for deployment
+      - name: 🛑 Docker Compose Down
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "cd /home/user1/Trainova/docker && docker-compose down && docker-compose build --no-cache && docker-compose up -d"
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose down"
+
+      - name: 🧱 Docker Compose Build
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose build --no-cache"
+
+      - name: 🚀 Docker Compose Up
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose up -d"
