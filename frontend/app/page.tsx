@@ -14,6 +14,7 @@ import AppTrainingCard from "@/app/components/shared/AppTrainingCard";
 export default function HomePage() {
   const theme = useTheme(); // <-- Достаём нашу тему
 
+ 
   // Пример данных для "Купленные курсы"
   // Вместо жёстких #FF8080 / #81c784 / #64b5f6 берём из theme.palette.muscleColors
   const purchasedCourses: PurchasedCourseData[] = [
@@ -81,13 +82,6 @@ export default function HomePage() {
       exercisesCount: 8,
       lastWorkout: "Вчера",
     },
-    {
-      id: 2,
-      title: "Тренировка 2",
-      duration: "45 минут",
-      exercisesCount: 12,
-      lastWorkout: "3 дня назад",
-    },
   ];
 
   return (
@@ -96,29 +90,7 @@ export default function HomePage() {
         {/* График (вес + тренировки) - теперь данные получаются через API */}
         <MyChart />
 
-        {/* Заголовок "Купленные курсы" по центру */}
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <Box flex={1}>
-            <Divider />
-          </Box>
-          <Typography
-            variant="body2"
-            fontWeight="bold"
-            sx={{ fontSize: "1rem", color: theme.palette.textColors?.primary }}
-          >
-            Купленные курсы
-          </Typography>
-          <Box flex={1}>
-            <Divider />
-          </Box>
-        </Stack>
-
-        {/* Список купленных курсов */}
-        <Stack spacing={2}>
-          {purchasedCourses.map((course, idx) => (
-            <PurchasedCourseCard key={idx} course={course} />
-          ))}
-        </Stack>
+        
 
         {/* Заголовок "Тренировки от приложения" */}
         <Stack direction="row" alignItems="center" spacing={1}>
