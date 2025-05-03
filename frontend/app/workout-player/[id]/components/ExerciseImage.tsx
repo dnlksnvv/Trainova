@@ -81,23 +81,30 @@ export default function ExerciseImage({
     <Box 
       sx={{
         width: '100%',
+        height: '100%',
         position: 'relative',
         aspectRatio: '1/1',
-        bgcolor: 'background.paper',
-        overflow: 'hidden'
+        bgcolor: 'common.white',
+        overflow: 'hidden',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center'
       }}
     >
       {/* Показываем скелетон во время загрузки */}
       {loading && (
         <Box
           sx={{
-            width: '100%',
-            height: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: 'backgrounds.paper',
-            p: 2
+            bgcolor: 'common.black',
+            zIndex: 2
           }}
         >
           <CircularProgress sx={{ color: 'highlight.main' }} />
@@ -105,7 +112,23 @@ export default function ExerciseImage({
       )}
       
       {/* Загружаем GIF в фоне, не отображая его до окончания загрузки */}
-      <Box sx={{ display: loading ? 'none' : 'block', height: '100%' }}>
+      <Box 
+        sx={{ 
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          visibility: loading ? 'hidden' : 'visible',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          width: '100%',
+          height: '100%',
+          zIndex: 1,
+          bgcolor: 'common.white'
+        }}
+      >
         <GifPlayerPage
           gifUrl={imageUrl}
           autoPlay={true}
@@ -125,18 +148,22 @@ export default function ExerciseImage({
             position: 'absolute',
             top: 0,
             left: 0,
-            width: '100%',
-            height: '100%',
+            right: 0,
+            bottom: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: 'backgrounds.paper',
-            p: 2
+            bgcolor: 'common.white',
+            p: 2,
+            zIndex: 3
           }}
         >
-          <Typography variant="body2" color="error" align="center" sx={{ maxWidth: '80%' }}>
-            {loadError}
-          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <ErrorOutline color="error" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="body2" color="error" align="center" sx={{ maxWidth: '80%' }}>
+              {loadError}
+            </Typography>
+          </Box>
         </Box>
       )}
     </Box>

@@ -3,10 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import { Box, IconButton, Typography, LinearProgress, CircularProgress } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
-import SkipNextIcon from '@mui/icons-material/SkipNext';
-import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
+
 
 interface GifPlayerPageProps {
   gifUrl: string;
@@ -182,7 +179,7 @@ export default function GifPlayerPage({
         const buffer = await response.arrayBuffer();
         console.log('GIF загружен, размер буфера:', buffer.byteLength);
         const gif = parseGIF(buffer);
-        const decompressedFrames = decompressFrames(gif, 1);
+        const decompressedFrames = decompressFrames(gif, true);
         console.log('Распаковано кадров:', decompressedFrames.length);
         
         if (!decompressedFrames || decompressedFrames.length === 0) {
@@ -272,7 +269,11 @@ export default function GifPlayerPage({
     // Создаем прозрачный фон
     const transparentImageData = ctx.createImageData(gifWidth, gifHeight);
     for (let i = 0; i < transparentImageData.data.length; i += 4) {
-      transparentImageData.data[i + 3] = 0;
+      // Устанавливаем белый фон вместо прозрачного
+      transparentImageData.data[i] = 255; // R
+      transparentImageData.data[i + 1] = 255; // G
+      transparentImageData.data[i + 2] = 255; // B
+      transparentImageData.data[i + 3] = 255; // A (непрозрачный)
     }
     ctx.putImageData(transparentImageData, 0, 0);
     
@@ -334,6 +335,10 @@ export default function GifPlayerPage({
     
     // Очищаем canvas перед рисованием нового кадра
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Рисуем белый фон
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     
     // Создаем временный canvas для исходного кадра
     const tempCanvas = document.createElement('canvas');
@@ -476,121 +481,52 @@ export default function GifPlayerPage({
   return (
     <Box
       sx={{
-        width: '100%',
-        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        width: '100%',
+        height: '100%',
         position: 'relative',
-        bgcolor: 'background.paper',
-        borderRadius: 1,
-        overflow: 'hidden'
+        textAlign: 'center',
+        bgcolor: 'common.white'
       }}
     >
-      {/* Холст для отображения GIF - отображаем только когда GIF загружен */}
-      <Box
-        sx={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          overflow: 'hidden', // Скрываем всё, что выходит за границы
-          aspectRatio: '1/1', // Поддерживаем квадратную форму
-        }}
-      >
-        {/* Отображаем canvas только когда GIF загружен */}
-        {!loading && frames.length > 0 && (
-          <canvas
-            ref={canvasRef}
-            width={canvasDimensions.width}
-            height={canvasDimensions.height}
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover', // Заполняем всю доступную площадь
-              objectPosition: 'center', // Центрируем изображение
-              display: 'block',
-              backgroundColor: 'transparent'
-            }}
-          />
-        )}
-        
-        {/* Иконка паузы - отображаем только когда GIF загружен */}
-        {!loading && isPaused && (
-          <Box
-            sx={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 2
-            }}
-          >
-            <Box
-              sx={{
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                borderRadius: '50%',
-                width: 60,
-                height: 60,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <PauseIcon sx={{ color: 'white', fontSize: 40 }} />
-            </Box>
-          </Box>
-        )}
-        
-        {/* Сообщение о загрузке */}
-        {loading && (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: 'backgrounds.paper',
-              zIndex: 2
-            }}
-          >
-            <CircularProgress sx={{ color: 'highlight.main' }} />
-          </Box>
-        )}
-        
-        {/* Сообщение об ошибке */}
-        {error && (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: 'backgrounds.paper',
-              p: 2,
-              zIndex: 2
-            }}
-          >
-            <Typography variant="body2" color="error" align="center" sx={{ maxWidth: '80%' }}>
-              {error}
-            </Typography>
-          </Box>
-        )}
-      </Box>
+      {loading && (
+        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+          <CircularProgress size={40} sx={{ color: 'highlight.main' }} />
+        </Box>
+      )}
+
+      {error && (
+        <Typography variant="body2" color="error" sx={{ mt: 2 }}>
+          {error}
+        </Typography>
+      )}
+
+      {/* Отображаем canvas только когда GIF загружен */}
+      {!loading && frames.length > 0 && (
+        <canvas
+          ref={canvasRef}
+          width={canvasDimensions.width}
+          height={canvasDimensions.height}
+          style={{
+            position: 'absolute',
+            maxWidth: '100%', 
+            maxHeight: '100%',
+            width: 'auto',       // Автоматический размер для сохранения пропорций
+            height: 'auto',      // Автоматический размер для сохранения пропорций
+            top: '50%',          // Центрирование по вертикали
+            left: '50%',         // Центрирование по горизонтали
+            transform: 'translate(-50%, -50%)', // Смещение для точного центрирования
+            objectFit: 'contain', // Сохраняем соотношение сторон
+            display: 'block',
+            backgroundColor: 'white'
+          }}
+        />
+      )}
+      
+      {/* Остальные элементы интерфейса, если они есть */}
     </Box>
   );
 } 

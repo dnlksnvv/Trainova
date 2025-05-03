@@ -24,7 +24,6 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 import MuscleGroupDialog from '@/app/components/muscle-groups/MuscleGroupDialog';
 import ExerciseDialog from '@/app/components/exercises/ExerciseDialog';
 import AdminGuard from '@/app/components/auth/AdminGuard';
@@ -249,8 +248,7 @@ export default function ExercisePoolPage() {
   const handleSaveExercise = async (data: ExerciseCreate | ExerciseUpdate) => {
     try {
       if (isCreatingExercise) {
-        // Создание нового упражнения
-        // Если выбрана группа мышц, устанавливаем её
+
         if (selectedMuscleGroupId) {
           const selectedGroup = muscleGroups.find(g => g.id === selectedMuscleGroupId);
           if (selectedGroup) {
