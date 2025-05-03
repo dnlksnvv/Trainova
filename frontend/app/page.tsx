@@ -15,7 +15,7 @@ export default function HomePage() {
   const theme = useTheme(); // <-- Достаём нашу тему
 
  
-  // Пример данных для "Купленные курсы"
+  // Пример данных для "Купленные  курсы"
   // Вместо жёстких #FF8080 / #81c784 / #64b5f6 берём из theme.palette.muscleColors
   const purchasedCourses: PurchasedCourseData[] = [
     {
