@@ -6,7 +6,8 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { CacheProvider } from "@emotion/react";
 import createCache from "@emotion/cache";
 import { useServerInsertedHTML } from "next/navigation";
-import theme from "./theme"; // <-- ВАЖНО: путь к твоему файлу с темой
+import theme from "./theme"; 
+import { GlobalStyles } from "@mui/material";
 
 export default function ThemeRegistry({ children }: { children: React.ReactNode }) {
   const [{ cache, flush }] = React.useState(() => {
@@ -51,12 +52,39 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
       />
     );
   });
+  
+  // CSS переменные, доступные глобально - экспортируем только необходимые стили из темы
+  const globalStyles = {
+    ':root': {
+      // Экспортируем фоны
+      '--mui-background-default': theme.palette.backgrounds?.default,
+      '--mui-background-paper': theme.palette.backgrounds?.paper,
+      
+      // Экспортируем цвета текста
+      '--mui-text-primary': theme.palette.textColors?.primary,
+      '--mui-text-secondary': theme.palette.textColors?.secondary,
+      
+      // Экспортируем шрифт
+      '--mui-font-family': theme.typography.fontFamily,
+    },
+    html: {
+      backgroundColor: theme.palette.backgrounds?.default,
+    },
+    body: {
+      backgroundColor: theme.palette.backgrounds?.default,
+      color: theme.palette.textColors?.primary,
+      fontFamily: theme.typography.fontFamily,
+      margin: 0,
+    }
+  };
 
   return (
     <CacheProvider value={cache}>
       <ThemeProvider theme={theme}>
-        {/* CssBaseline выравнивает стили под тему (фон, цвета и т.д.) */}
+        {/* CssBaseline для сброса стилей браузера */}
         <CssBaseline />
+        {/* Применяем глобальные стили */}
+        <GlobalStyles styles={globalStyles} />
         {children}
       </ThemeProvider>
     </CacheProvider>
