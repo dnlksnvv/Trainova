@@ -17,26 +17,6 @@ const getAccessToken = (): string | null => {
   return null;
 };
 
-// Функция для получения ID текущего пользователя из cookie или localStorage
-export const getCurrentUserId = (): string => {
-  if (typeof window !== 'undefined') {
-    // Пытаемся получить id из cookie
-    const userId = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('user_id='))
-      ?.split('=')[1];
-      
-    if (userId) return userId;
-    
-    // Или из localStorage
-    const userIdFromStorage = localStorage.getItem('user_id');
-    if (userIdFromStorage) return userIdFromStorage;
-  }
-  
-  // Если не нашли, возвращаем значение по умолчанию
-  return "1";
-};
-
 // Общая функция для выполнения запросов с авторизацией
 export async function fetchWithAuth<T>(
   url: string, 
@@ -586,7 +566,6 @@ export const userActivityApi = {
 
 // Интерфейс для отправки данных о прогрессе тренировки
 export interface WorkoutProgressDto {
-  user_id: number | string;
   workout_uuid: string;
   completed_at: string;
 }
@@ -595,17 +574,11 @@ export interface WorkoutProgressDto {
 export const workoutProgressApi = {
   // Сохранение прогресса тренировки
   saveProgress: async (data: WorkoutProgressDto): Promise<any> => {
-    // Используем ID текущего пользователя, если не указан явно
-    const payload = {
-      ...data,
-      user_id: data.user_id || getCurrentUserId()
-    };
-    
-    console.log('Отправляем данные прогресса тренировки:', JSON.stringify(payload));
+    console.log('Отправляем данные прогресса тренировки:', JSON.stringify(data));
     
     return fetchWithAuth<any>(`${API_URL}${WORKOUT_API_PREFIX}/user-activity/save-progress`, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(data),
     });
   },
 }; 
