@@ -5,6 +5,7 @@ import os
 import shutil
 from pathlib import Path
 from datetime import date, timedelta
+import logging
 
 from training.application.services.exercises_service import ExercisesService
 from training.application.services.training_service import TrainingService
@@ -26,14 +27,11 @@ from config import settings
 # Директория для сохранения GIF-файлов упражнений
 EXERCISES_CONTENT_DIR = Path("exercises_content")
 
-# Создаем директорию, если она еще не существует
 os.makedirs(EXERCISES_CONTENT_DIR, exist_ok=True)
-# Убедимся, что у директории есть нужные права доступа
 try:
     os.chmod(EXERCISES_CONTENT_DIR, 0o777)
     print(f"Установлены права 777 для директории {EXERCISES_CONTENT_DIR}")
     
-    # Дополнительная отладочная информация о директории
     import stat
     st = os.stat(EXERCISES_CONTENT_DIR)
     permissions = oct(st.st_mode)[-3:]
@@ -52,6 +50,8 @@ try:
         
 except Exception as e:
     print(f"Предупреждение: не удалось установить права для директории exercises_content: {e}")
+
+logger = logging.getLogger(__name__)
 
 class TrainingRouter:
     """
@@ -801,33 +801,79 @@ class TrainingRouter:
         Получаем данные об активности пользователя за указанный период.
         Если даты не указаны, возвращаем данные за последнюю неделю.
         """
-        user_id = await get_current_user_id(request)
-        
-        # Если даты не указаны, используем последнюю неделю
-        if not start_date:
-            start_date = date.today() - timedelta(days=6)
-        if not end_date:
-            end_date = date.today()
-        
-        return await self.activity_service.get_user_activity(int(user_id), start_date, end_date)
+        try:
+            user_id = await get_current_user_id(request)
+            
+            # Если даты не указаны, используем последнюю неделю
+            if not start_date:
+                start_date = date.today() - timedelta(days=6)
+            if not end_date:
+                end_date = date.today()
+            
+            logger.info(f"Получение активности для пользователя ID: {user_id} за период {start_date} - {end_date}")
+            
+            # Обязательно преобразуем user_id в int
+            try:
+                user_id_int = int(user_id)
+                return await self.activity_service.get_user_activity(user_id_int, start_date, end_date)
+            except ValueError as e:
+                logger.error(f"Ошибка преобразования user_id в int: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Некорректный формат user_id: {str(e)}"
+                )
+        except Exception as e:
+            logger.error(f"Ошибка при получении данных активности: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка при получении данных активности: {str(e)}"
+            )
     
     async def update_user_activity(self, activity_data: UserActivity, request: Request) -> UserActivity:
         """
         Обновляем данные об активности пользователя за указанную дату.
         """
-        user_id = await get_current_user_id(request)
-        
-        is_admin_user = is_admin(request)
-        if str(user_id) != activity_data.user_id and not is_admin_user:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Недостаточно прав для обновления данных другого пользователя"
+        try:
+            current_user_id = await get_current_user_id(request)
+            
+            # Проверяем, является ли пользователь админом
+            is_admin_user = is_admin(request)
+            
+            # Получаем исходный user_id из запроса для логирования
+            original_user_id = activity_data.user_id
+            
+            # Если пользователь не админ, всегда используем его ID
+            if not is_admin_user:
+                activity_data.user_id = str(current_user_id)
+            # Если админ не указал ID, используем его собственный ID
+            elif not activity_data.user_id:
+                activity_data.user_id = str(current_user_id)
+            
+            logger.info(f"Обновление активности: текущий пользователь ID={current_user_id}, запрошенный ID={original_user_id}, итоговый ID={activity_data.user_id}, admin={is_admin_user}")
+            
+            # Обновляем данные
+            result = await self.activity_service.update_user_activity(
+                int(activity_data.user_id),
+                activity_data.record_date,
+                activity_data.workout_count,
+                activity_data.weight
             )
-        return await self.activity_service.update_user_activity(
-            int(activity_data.user_id),
-            activity_data.record_date,
-            activity_data.workout_count
-        )
+            
+            return result
+        except ValueError as e:
+            logger.error(f"Ошибка преобразования user_id: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Некорректный формат user_id: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении активности: {str(e)}")
+            if isinstance(e, HTTPException):
+                raise
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка при обновлении активности: {str(e)}"
+            )
 
     async def save_workout_progress(self, workout_data: WorkoutProgress, request: Request):
         """

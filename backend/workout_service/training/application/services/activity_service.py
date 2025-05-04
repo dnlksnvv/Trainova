@@ -57,22 +57,23 @@ class ActivityService:
                 activity_data = activity_dict.get(current_date)
                 weight_data = weight_dict.get(current_date)
                 
-                workout_count = activity_data['workout_count'] if activity_data else 0
+                # Определяем, есть ли у нас данные для этой даты
+                has_activity = activity_data and activity_data['workout_count'] > 0
+                has_last_workout = activity_data and activity_data.get('last_workout_uuid')
+                has_weight = weight_data is not None
                 
-                if weight_data:
-                    weight = float(weight_data['weight'])
+                # Добавляем в результат только если есть какие-то данные
+                if has_activity or has_weight or has_last_workout:
+                    workout_count = activity_data['workout_count'] if activity_data else 0
+                    weight = float(weight_data['weight']) if weight_data else None
+                    last_workout_uuid = activity_data.get('last_workout_uuid') if activity_data else None
+                    
                     result.append(UserActivity(
                         user_id=str(user_id),
                         record_date=current_date,
                         workout_count=workout_count,
-                        weight=weight
-                    ))
-                elif activity_data:
-                    result.append(UserActivity(
-                        user_id=str(user_id),
-                        record_date=current_date,
-                        workout_count=workout_count,
-                        weight=None
+                        weight=weight,
+                        last_workout_uuid=last_workout_uuid
                     ))
             
             return result

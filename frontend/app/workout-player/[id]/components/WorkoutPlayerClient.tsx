@@ -15,7 +15,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
 import { motion, AnimatePresence } from 'framer-motion';
 import ExerciseImage from './ExerciseImage';
-import { workoutProgressApi, getCurrentUserId } from '@/app/services/api';
+import { workoutProgressApi } from '@/app/services/api';
 
 interface WorkoutPlayerClientProps {
   workout: Workout;
@@ -444,8 +444,8 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     
     try {
       // Используем API из services/api.ts для сохранения прогресса
+      // Не передаем user_id - он будет определен в API автоматически
       const response = await workoutProgressApi.saveProgress({
-        user_id: getCurrentUserId(), // Получаем ID текущего пользователя
         workout_uuid: workout.id,
         completed_at: new Date().toISOString()
       });
