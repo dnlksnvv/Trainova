@@ -531,7 +531,6 @@ export const appWorkoutsApi = {
 
 // Интерфейс для данных пользовательской активности
 export interface UserActivity {
-  user_id: string;
   record_date: string;
   workout_count: number;
   weight: number | null;
@@ -551,12 +550,13 @@ export const userActivityApi = {
     const queryString = params.toString();
     if (queryString) url += `?${queryString}`;
     
+    // Пользователь определяется по токену на бэкенде
     return fetchWithAuth<UserActivity[]>(url);
   },
   
   // Обновление данных активности
   updateActivity: async (activityData: UserActivity): Promise<UserActivity> => {
-    // weight передаем, но он не будет сохранен в БД, так как поля в БД сейчас нет
+    // ID пользователя определяется на бэкенде по токену авторизации
     return fetchWithAuth<UserActivity>(`${API_URL}${WORKOUT_API_PREFIX}/user-activity`, {
       method: 'POST',
       body: JSON.stringify(activityData),

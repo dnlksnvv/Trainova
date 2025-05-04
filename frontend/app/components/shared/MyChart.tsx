@@ -135,13 +135,8 @@ export default function MyChart({}: MyChartProps) {
 
     setEditLoading(true);
     try {
-      // Получаем ID пользователя из кук или localStorage (зависит от реализации аутентификации)
-      // Здесь предполагаем, что есть метод для получения ID текущего пользователя
-      const userId = '1'; // Временно задаем фиксированный ID
-
-      // Создаем объект активности для обновления
+      // Создаем объект активности для обновления, без указания user_id
       const activityData: UserActivity = {
-        user_id: userId,
         record_date: editData.day,
         workout_count: editData.workouts,
         weight: editData.weight

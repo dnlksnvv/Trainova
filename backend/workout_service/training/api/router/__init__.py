@@ -812,7 +812,6 @@ class TrainingRouter:
             
             logger.info(f"Получение активности для пользователя ID: {user_id} за период {start_date} - {end_date}")
             
-            # Обязательно преобразуем user_id в int
             try:
                 user_id_int = int(user_id)
                 return await self.activity_service.get_user_activity(user_id_int, start_date, end_date)
@@ -832,28 +831,19 @@ class TrainingRouter:
     async def update_user_activity(self, activity_data: UserActivity, request: Request) -> UserActivity:
         """
         Обновляем данные об активности пользователя за указанную дату.
+        ID пользователя определяется из токена авторизации.
         """
         try:
             current_user_id = await get_current_user_id(request)
             
-            # Проверяем, является ли пользователь админом
+            # Является ли пользователь админом (для логирования)
             is_admin_user = is_admin(request)
             
-            # Получаем исходный user_id из запроса для логирования
-            original_user_id = activity_data.user_id
+            logger.info(f"Обновление активности: ID пользователя={current_user_id}, admin={is_admin_user}")
             
-            # Если пользователь не админ, всегда используем его ID
-            if not is_admin_user:
-                activity_data.user_id = str(current_user_id)
-            # Если админ не указал ID, используем его собственный ID
-            elif not activity_data.user_id:
-                activity_data.user_id = str(current_user_id)
-            
-            logger.info(f"Обновление активности: текущий пользователь ID={current_user_id}, запрошенный ID={original_user_id}, итоговый ID={activity_data.user_id}, admin={is_admin_user}")
-            
-            # Обновляем данные
+            # Обновляем данные, используя ID из токена
             result = await self.activity_service.update_user_activity(
-                int(activity_data.user_id),
+                int(current_user_id),
                 activity_data.record_date,
                 activity_data.workout_count,
                 activity_data.weight
@@ -877,15 +867,16 @@ class TrainingRouter:
 
     async def save_workout_progress(self, workout_data: WorkoutProgress, request: Request):
         """
-        Сохраняем прогресс тренировки пользователя и увеличиваем счетчик тренировок за день
+        Сохраняем прогресс тренировки пользователя и увеличиваем счетчик тренировок за день.
+        ID пользователя определяется из токена авторизации.
         """
         try:
-            # Получаем ID пользователя из данных запроса и преобразуем его в int
-            user_id = int(workout_data.user_id)
+            # Получаем ID пользователя из токена
+            current_user_id = await get_current_user_id(request)
             
             # Сохраняем прогресс тренировки, передавая UUID тренировки и время завершения
             result = await self.activity_service.save_workout_progress(
-                user_id=user_id,
+                user_id=int(current_user_id),
                 workout_uuid=workout_data.workout_uuid,
                 completed_at=workout_data.completed_at
             )
