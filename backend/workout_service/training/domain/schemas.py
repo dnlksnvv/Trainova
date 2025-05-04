@@ -262,7 +262,6 @@ class AppWorkoutUpdate(BaseModel):
 
 
 class UserActivity(BaseModel):
-    user_id: str
     record_date: date
     workout_count: int = 0
     weight: Optional[float] = None
@@ -278,6 +277,5 @@ class UserActivityRequest(BaseModel):
 
 
 class WorkoutProgress(BaseModel):
-    user_id: str
     workout_uuid: UUID
     completed_at: datetime
