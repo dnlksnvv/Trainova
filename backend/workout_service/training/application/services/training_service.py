@@ -612,24 +612,26 @@ class TrainingService:
             raise
 
     
-    async def get_app_workouts(self, user_id: int) -> List[AppWorkout]:
+    async def get_app_workouts(self, user_id: int, is_admin: bool = False) -> List[AppWorkout]:
         """
         Получает список всех пользовательских тренировок с информацией о последней сессии пользователя,
         последнем упражнении и суммарном времени тренировки
         
         Args:
             user_id: ID пользователя
+            is_admin: Флаг, указывающий, что пользователь является администратором
             
         Returns:
             Список пользовательских тренировок с расширенной информацией
         """
         try:
-            # Запрос на получение всех тренировок
+            # Запрос на получение тренировок с фильтрацией по is_visible для не-админов
             query = """
                 SELECT * FROM app_workouts
+                WHERE (is_visible = true OR $1 = true)
                 ORDER BY created_at DESC
             """
-            rows = await self.db.fetch(query)
+            rows = await self.db.fetch(query, is_admin)
             
             workouts = []
             for row in rows:
@@ -737,7 +739,7 @@ class TrainingService:
             logger.error(f"Ошибка при получении списка пользовательских тренировок: {str(e)}")
             raise
     
-    async def get_app_workout_by_id(self, workout_uuid: UUID, user_id: int) -> Optional[AppWorkout]:
+    async def get_app_workout_by_id(self, workout_uuid: UUID, user_id: int, is_admin: bool = False) -> Optional[AppWorkout]:
         """
         Получает пользовательскую тренировку по ID с информацией о последней сессии пользователя,
         последнем упражнении и суммарном времени тренировки
@@ -745,6 +747,7 @@ class TrainingService:
         Args:
             workout_uuid: UUID тренировки
             user_id: ID пользователя
+            is_admin: Флаг, указывающий, что пользователь является администратором
             
         Returns:
             Объект тренировки или None, если тренировка не найдена
@@ -752,9 +755,9 @@ class TrainingService:
         try:
             query = """
                 SELECT * FROM app_workouts
-                WHERE app_workout_uuid = $1
+                WHERE app_workout_uuid = $1 AND (is_visible = true OR $2 = true)
             """
-            row = await self.db.fetchrow(query, str(workout_uuid))
+            row = await self.db.fetchrow(query, str(workout_uuid), is_admin)
             
             if not row:
                 return None
@@ -882,16 +885,18 @@ class TrainingService:
                     query = """
                         INSERT INTO app_workouts (
                             name, 
-                            description
+                            description,
+                            is_visible
                         )
-                        VALUES ($1, $2)
+                        VALUES ($1, $2, $3)
                         RETURNING *
                     """
                     
                     workout_row = await conn.fetchrow(
                         query, 
                         data.name, 
-                        data.description
+                        data.description,
+                        data.is_visible
                     )
                     
                     workout_uuid = workout_row['app_workout_uuid']
@@ -927,7 +932,7 @@ class TrainingService:
             logger.error(f"Ошибка при создании пользовательской тренировки: {str(e)}")
             raise
     
-    async def update_app_workout(self, workout_uuid: UUID, data: AppWorkoutCreate, user_id: int) -> Optional[AppWorkout]:
+    async def update_app_workout(self, workout_uuid: UUID, data: AppWorkoutCreate, user_id: int, is_admin: bool = False) -> Optional[AppWorkout]:
         """
         Обновляет пользовательскую тренировку
         
@@ -935,12 +940,13 @@ class TrainingService:
             workout_uuid: UUID тренировки
             data: Данные для обновления
             user_id: ID пользователя
+            is_admin: Флаг, указывающий, что пользователь является администратором
             
         Returns:
             Обновленная тренировка или None, если тренировка не найдена
         """
         try:
-            current_workout = await self.get_app_workout_by_id(workout_uuid, user_id)
+            current_workout = await self.get_app_workout_by_id(workout_uuid, user_id, is_admin)
             if not current_workout:
                 return None
             
@@ -952,8 +958,8 @@ class TrainingService:
                 async with conn.transaction():
                     update_query = """
                         UPDATE app_workouts
-                        SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
-                        WHERE app_workout_uuid = $3
+                        SET name = $1, description = $2, is_visible = $3, updated_at = CURRENT_TIMESTAMP
+                        WHERE app_workout_uuid = $4
                         RETURNING *
                     """
                     
@@ -961,6 +967,7 @@ class TrainingService:
                         update_query,
                         data.name,
                         data.description,
+                        data.is_visible,
                         str(workout_uuid)
                     )
                     
@@ -1005,19 +1012,20 @@ class TrainingService:
             logger.error(f"Ошибка при обновлении пользовательской тренировки {workout_uuid}: {str(e)}")
             raise
     
-    async def delete_app_workout(self, workout_uuid: UUID, user_id: int) -> bool:
+    async def delete_app_workout(self, workout_uuid: UUID, user_id: int, is_admin: bool = False) -> bool:
         """
         Удаляет пользовательскую тренировку
         
         Args:
             workout_uuid: UUID тренировки
-            user_id: ID пользователя (не используется)
+            user_id: ID пользователя
+            is_admin: Флаг, указывающий, что пользователь является администратором
             
         Returns:
             True, если тренировка была успешно удалена, иначе False
         """
         try:
-            current_workout = await self.get_app_workout_by_id(workout_uuid, user_id)
+            current_workout = await self.get_app_workout_by_id(workout_uuid, user_id, is_admin)
             if not current_workout:
                 return False
             

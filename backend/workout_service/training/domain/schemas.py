@@ -257,7 +257,9 @@ class AppWorkout(BaseModel):
     last_exercise_status: Optional[str] = None
     # Суммарное время тренировки (в секундах)
     total_workout_time: Optional[int] = None
-    
+    # Флаг видимости тренировки для других пользователей
+    is_visible: bool = False
+
     class Config:
         from_attributes = True
 
@@ -266,12 +268,14 @@ class AppWorkoutCreate(BaseModel):
     name: str
     description: Optional[str] = None
     exercises: List[AppWorkoutExerciseCreate]
+    is_visible: bool = False
 
 
 class AppWorkoutUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     exercises: Optional[List[AppWorkoutExerciseCreate]] = None
+    is_visible: Optional[bool] = None
 
 
 class UserActivity(BaseModel):

@@ -748,9 +748,11 @@ class TrainingRouter:
             Список тренировок пользователя
         """
         user_id = await get_current_user_id(request)
+        is_user_admin = is_admin(request)  # Проверяем, является ли пользователь админом
+        
         try:
             user_id_int = int(user_id)
-            workouts = await self.training_service.get_app_workouts(user_id_int)
+            workouts = await self.training_service.get_app_workouts(user_id_int, is_user_admin)
             
             # Если указан параметр сортировки, применяем его
             if order_by:
@@ -782,13 +784,15 @@ class TrainingRouter:
     async def get_app_workout(self, workout_uuid: UUID, request: Request) -> AppWorkout:
         """Получить тренировку пользователя по ID"""
         user_id = await get_current_user_id(request)
+        is_user_admin = is_admin(request)  # Проверяем, является ли пользователь админом
+        
         try:
             user_id_int = int(user_id)
-            workout = await self.training_service.get_app_workout_by_id(workout_uuid, user_id_int)
+            workout = await self.training_service.get_app_workout_by_id(workout_uuid, user_id_int, is_user_admin)
             if not workout:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Тренировка с UUID {workout_uuid} не найдена"
+                    detail=f"Тренировка с UUID {workout_uuid} не найдена или недоступна"
                 )
             return workout
         except ValueError as e:
@@ -826,9 +830,11 @@ class TrainingRouter:
             )
         
         user_id = await get_current_user_id(request)
+        is_user_admin = is_admin(request)  # Проверяем, является ли пользователь админом
+        
         try:
             user_id_int = int(user_id)
-            workout = await self.training_service.update_app_workout(workout_uuid, data, user_id_int)
+            workout = await self.training_service.update_app_workout(workout_uuid, data, user_id_int, is_user_admin)
             if not workout:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -850,9 +856,11 @@ class TrainingRouter:
                 detail="Только администратор может удалять тренировки"
             )
         user_id = await get_current_user_id(request)
+        is_user_admin = is_admin(request)  # Проверяем, является ли пользователь админом
+        
         try:
             user_id_int = int(user_id)
-            success = await self.training_service.delete_app_workout(workout_uuid, user_id_int)
+            success = await self.training_service.delete_app_workout(workout_uuid, user_id_int, is_user_admin)
             if not success:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
