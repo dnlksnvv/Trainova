@@ -269,7 +269,7 @@ class TrainingRouter:
             methods=["GET"],
             response_model=List[AppWorkout],
             summary="Получить список тренировок пользователя",
-            description="Возвращает список всех тренировок текущего пользователя"
+            description="Возвращает список всех тренировок текущего пользователя с возможностью сортировки и ограничения количества"
         )
         
         self.router.add_api_route(
@@ -733,12 +733,45 @@ class TrainingRouter:
     # Методы для обработки маршрутов app_workouts
     # \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
     
-    async def get_app_workouts(self, request: Request) -> List[AppWorkout]:
-        """Получить список тренировок пользователя"""
+    async def get_app_workouts(self, request: Request, 
+                       order_by: Optional[str] = None, 
+                       limit: Optional[int] = None) -> List[AppWorkout]:
+        """
+        Получить список тренировок пользователя
+        
+        Args:
+            request: HTTP запрос
+            order_by: Опциональный параметр сортировки ("newest" или "oldest")
+            limit: Опциональный параметр ограничения количества результатов
+        
+        Returns:
+            Список тренировок пользователя
+        """
         user_id = await get_current_user_id(request)
         try:
             user_id_int = int(user_id)
-            return await self.training_service.get_app_workouts(user_id_int)
+            workouts = await self.training_service.get_app_workouts(user_id_int)
+            
+            # Если указан параметр сортировки, применяем его
+            if order_by:
+                # Создаем утилитарную функцию для извлечения даты для сортировки
+                def get_sort_datetime(workout):
+                    # Для корректного сравнения дат используем строковое представление,
+                    # если last_session_start не задан, используем минимальную строку
+                    return str(workout.last_session_start) if workout.last_session_start else ""
+                
+                if order_by == "newest":
+                    # Сортируем по убыванию даты последней сессии (сначала новые)
+                    workouts.sort(key=get_sort_datetime, reverse=True)
+                elif order_by == "oldest":
+                    # Сортируем по возрастанию даты последней сессии (сначала старые)
+                    workouts.sort(key=get_sort_datetime)
+            
+            # Если указан лимит, ограничиваем количество результатов
+            if limit and isinstance(limit, int) and limit > 0:
+                workouts = workouts[:limit]
+            
+            return workouts
         except ValueError as e:
             logger.error(f"Ошибка преобразования user_id в int: {str(e)}")
             raise HTTPException(

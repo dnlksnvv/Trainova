@@ -424,9 +424,23 @@ export interface AppWorkoutDto {
 // API для работы с пользовательскими тренировками
 export const appWorkoutsApi = {
   // Получение списка всех пользовательских тренировок
-  getAppWorkouts: async (): Promise<AppWorkoutDto[]> => {
+  getAppWorkouts: async (orderBy?: string, limit?: number): Promise<AppWorkoutDto[]> => {
     try {
-      const response = await fetchWithAuth<AppWorkoutDto[]>(`${API_URL}${WORKOUT_API_PREFIX}/app-workouts`);
+      // Формируем URL с параметрами запроса
+      let url = `${API_URL}${WORKOUT_API_PREFIX}/app-workouts`;
+      const params = new URLSearchParams();
+      
+      // Добавляем параметры, если они указаны
+      if (orderBy) params.append('order_by', orderBy);
+      if (limit) params.append('limit', limit.toString());
+      
+      // Добавляем параметры в URL, если они есть
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+      
+      const response = await fetchWithAuth<AppWorkoutDto[]>(url);
       return response;
     } catch (error) {
       console.error('Ошибка при получении списка тренировок:', error);
