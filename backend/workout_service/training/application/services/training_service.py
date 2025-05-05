@@ -5,7 +5,8 @@ from training.domain.schemas import (
     Training, TrainingCreate, TrainingUpdate,
     UserTraining, UserTrainingCreate, UserTrainingUpdate,
     TrainingExercise, TrainingExerciseCreate,
-    AppWorkout, AppWorkoutCreate, AppWorkoutExercise
+    AppWorkout, AppWorkoutCreate, AppWorkoutExercise,
+    TrainingStatus
 )
 from training.infrastructure.database import Database
 from training.domain.db_constants import *
@@ -107,6 +108,10 @@ class TrainingService:
             Созданная тренировка
         """
         try:
+            # Убедимся, что подключение к БД установлено
+            if not self.db._pool:
+                await self.db.connect()
+                
             async with self.db._pool.acquire() as conn:
                 async with conn.transaction():
                     query = f"""
@@ -188,6 +193,10 @@ class TrainingService:
             if not current_training or current_training.created_by != user_id:
                 return None
             
+            # Убедимся, что подключение к БД установлено
+            if not self.db._pool:
+                await self.db.connect()
+                
             async with self.db._pool.acquire() as conn:
                 async with conn.transaction():
                     update_fields = []
@@ -301,6 +310,10 @@ class TrainingService:
             if not current_training or current_training.created_by != user_id:
                 return False
             
+            # Убедимся, что подключение к БД установлено
+            if not self.db._pool:
+                await self.db.connect()
+                
             async with self.db._pool.acquire() as conn:
                 async with conn.transaction():
                     await conn.execute(
@@ -328,7 +341,7 @@ class TrainingService:
             logger.error(f"Ошибка при удалении тренировки {training_id}: {str(e)}")
             raise
     
-    async def _get_training_exercises(self, training_id: int) -> List[TrainingExercise]:
+    async def _get_training_exercises(self, training_id: Optional[int]) -> List[TrainingExercise]:
         """
         Получает список упражнений для тренировки
         
@@ -339,6 +352,9 @@ class TrainingService:
             Список упражнений
         """
         try:
+            if training_id is None:
+                return []
+                
             query = f"""
                 SELECT * FROM {TRAINING_EXERCISES_TABLE}
                 WHERE {TRAINING_EXERCISE_TRAINING_ID} = $1
@@ -380,7 +396,15 @@ class TrainingService:
                 training = Training(**training_data)
                 training.exercises = await self._get_training_exercises(training.id)
                 
-                user_training = UserTraining(**user_training_data)
+                user_training = UserTraining(
+                    id=user_training_data.get("user_training_id"),
+                    user_id=user_id,
+                    training_id=int(training_data.get(TRAINING_ID, 0)),
+                    status=row.get("user_training_status", TrainingStatus.NOT_STARTED),
+                    is_favorite=row.get("user_training_favorite", False),
+                    started_at=row.get("user_training_started_at"),
+                    completed_at=row.get("user_training_completed_at")
+                )
                 user_training.training = training
                 
                 user_trainings.append(user_training)
@@ -414,7 +438,15 @@ class TrainingService:
             
             existing = await self.db.fetchrow(query, user_id, training_data.training_id)
             if existing:
-                user_training = UserTraining(**existing)
+                user_training = UserTraining(
+                    id=existing.get("user_training_id"),
+                    user_id=user_id,
+                    training_id=training_data.training_id,
+                    status=existing.get("user_training_status", TrainingStatus.NOT_STARTED),
+                    is_favorite=existing.get("user_training_favorite", False),
+                    started_at=existing.get("user_training_started_at"),
+                    completed_at=existing.get("user_training_completed_at")
+                )
                 user_training.training = training
                 return user_training
             
@@ -435,7 +467,16 @@ class TrainingService:
                 training_data.is_favorite
             )
             
-            user_training = UserTraining(**row)
+            row_dict = dict(row) if row else {}
+            user_training = UserTraining(
+                id=row_dict.get("user_training_id"),
+                user_id=user_id,
+                training_id=training_data.training_id,
+                status=row_dict.get("user_training_status", TrainingStatus.NOT_STARTED),
+                is_favorite=row_dict.get("user_training_favorite", False),
+                started_at=row_dict.get("user_training_started_at"),
+                completed_at=row_dict.get("user_training_completed_at")
+            )
             user_training.training = training
             
             return user_training
@@ -503,7 +544,16 @@ class TrainingService:
             
             if not update_fields:
                 training = await self.get_training_by_id(training_id, user_id)
-                user_training = UserTraining(**existing)
+                existing_dict = dict(existing) if existing else {}
+                user_training = UserTraining(
+                    id=existing_dict.get("user_training_id"),
+                    user_id=user_id,
+                    training_id=training_id,
+                    status=existing_dict.get("user_training_status", TrainingStatus.NOT_STARTED),
+                    is_favorite=existing_dict.get("user_training_favorite", False),
+                    started_at=existing_dict.get("user_training_started_at"),
+                    completed_at=existing_dict.get("user_training_completed_at")
+                )
                 user_training.training = training
                 return user_training
             
@@ -520,7 +570,16 @@ class TrainingService:
             # Получаем данные тренировки
             training = await self.get_training_by_id(training_id, user_id)
             
-            user_training = UserTraining(**row)
+            row_dict = dict(row) if row else {}
+            user_training = UserTraining(
+                id=row_dict.get("user_training_id"),
+                user_id=user_id,
+                training_id=training_id,
+                status=row_dict.get("user_training_status", TrainingStatus.NOT_STARTED),
+                is_favorite=row_dict.get("user_training_favorite", False),
+                started_at=row_dict.get("user_training_started_at"),
+                completed_at=row_dict.get("user_training_completed_at")
+            )
             user_training.training = training
             
             return user_training
@@ -555,15 +614,17 @@ class TrainingService:
     
     async def get_app_workouts(self, user_id: int) -> List[AppWorkout]:
         """
-        Получает список всех пользовательских тренировок
+        Получает список всех пользовательских тренировок с информацией о последней сессии пользователя,
+        последнем упражнении и суммарном времени тренировки
         
         Args:
-            user_id: ID пользователя (не используется)
+            user_id: ID пользователя
             
         Returns:
-            Список пользовательских тренировок
+            Список пользовательских тренировок с расширенной информацией
         """
         try:
+            # Запрос на получение всех тренировок
             query = """
                 SELECT * FROM app_workouts
                 ORDER BY created_at DESC
@@ -574,6 +635,101 @@ class TrainingService:
             for row in rows:
                 workout = AppWorkout(**row)
                 workout.exercises = await self._get_app_workout_exercises(workout.app_workout_uuid)
+                
+                # Получаем информацию о последней сессии для этой тренировки для этого пользователя
+                last_session_query = """
+                    SELECT 
+                        workout_session_uuid,
+                        datetime_start,
+                        datetime_stop,
+                        status
+                    FROM user_workout_sessions
+                    WHERE user_id = $1 AND workout_uuid = $2
+                    ORDER BY datetime_start DESC
+                    LIMIT 1
+                """
+                
+                try:
+                    last_session = await self.db.fetchrow(last_session_query, user_id, str(workout.app_workout_uuid))
+                    
+                    # Добавляем информацию о последней сессии к объекту тренировки
+                    if last_session:
+                        session_dict = dict(last_session)
+                        workout_session_uuid = session_dict.get('workout_session_uuid')
+                        workout.last_session_uuid = workout_session_uuid
+                        workout.last_session_start = session_dict.get('datetime_start')
+                        workout.last_session_stop = session_dict.get('datetime_stop')
+                        workout.last_session_status = session_dict.get('status')
+                        
+                        # Если нашли сессию тренировки, ищем информацию о последнем упражнении
+                        if workout_session_uuid:
+                            # Запрос на получение последнего упражнения в тренировке
+                            last_exercise_query = """
+                                SELECT 
+                                    exercise_session_uuid,
+                                    datetime_start,
+                                    datetime_end,
+                                    status
+                                FROM user_exercise_sessions
+                                WHERE workout_session_uuid = $1
+                                ORDER BY datetime_start DESC
+                                LIMIT 1
+                            """
+                            
+                            last_exercise = await self.db.fetchrow(last_exercise_query, str(workout_session_uuid))
+                            if last_exercise:
+                                exercise_dict = dict(last_exercise)
+                                workout.last_exercise_session_uuid = exercise_dict.get('exercise_session_uuid')
+                                workout.last_exercise_start = exercise_dict.get('datetime_start')
+                                workout.last_exercise_stop = exercise_dict.get('datetime_end')
+                                workout.last_exercise_status = exercise_dict.get('status')
+                            
+                            # Подсчитываем суммарное время всех упражнений в тренировке
+                            total_time_query = """
+                                SELECT 
+                                    datetime_start,
+                                    datetime_end
+                                FROM user_exercise_sessions
+                                WHERE workout_session_uuid = $1 AND datetime_end IS NOT NULL
+                            """
+                            
+                            exercise_times = await self.db.fetch(total_time_query, str(workout_session_uuid))
+                            total_seconds = 0
+                            
+                            if exercise_times:
+                                for exercise_time in exercise_times:
+                                    time_dict = dict(exercise_time)
+                                    start_time = time_dict.get('datetime_start')
+                                    end_time = time_dict.get('datetime_end')
+                                    
+                                    # Вычисляем разницу только если оба значения не None
+                                    if start_time and end_time:
+                                        time_diff = end_time - start_time
+                                        total_seconds += time_diff.total_seconds()
+                                
+                                workout.total_workout_time = int(total_seconds)
+                    else:
+                        workout.last_session_uuid = None
+                        workout.last_session_start = None
+                        workout.last_session_stop = None
+                        workout.last_session_status = None
+                        workout.last_exercise_session_uuid = None
+                        workout.last_exercise_start = None
+                        workout.last_exercise_stop = None
+                        workout.last_exercise_status = None
+                        workout.total_workout_time = None
+                except Exception as e:
+                    logger.error(f"Ошибка при получении информации о последней сессии: {str(e)}")
+                    workout.last_session_uuid = None
+                    workout.last_session_start = None
+                    workout.last_session_stop = None
+                    workout.last_session_status = None
+                    workout.last_exercise_session_uuid = None
+                    workout.last_exercise_start = None
+                    workout.last_exercise_stop = None
+                    workout.last_exercise_status = None
+                    workout.total_workout_time = None
+                
                 workouts.append(workout)
             
             return workouts
@@ -583,11 +739,12 @@ class TrainingService:
     
     async def get_app_workout_by_id(self, workout_uuid: UUID, user_id: int) -> Optional[AppWorkout]:
         """
-        Получает пользовательскую тренировку по ID
+        Получает пользовательскую тренировку по ID с информацией о последней сессии пользователя,
+        последнем упражнении и суммарном времени тренировки
         
         Args:
             workout_uuid: UUID тренировки
-            user_id: ID пользователя (не используется)
+            user_id: ID пользователя
             
         Returns:
             Объект тренировки или None, если тренировка не найдена
@@ -604,6 +761,100 @@ class TrainingService:
                 
             workout = AppWorkout(**row)
             workout.exercises = await self._get_app_workout_exercises(workout.app_workout_uuid)
+            
+            # Получаем информацию о последней сессии для этой тренировки для этого пользователя
+            last_session_query = """
+                SELECT 
+                    workout_session_uuid,
+                    datetime_start,
+                    datetime_stop,
+                    status
+                FROM user_workout_sessions
+                WHERE user_id = $1 AND workout_uuid = $2
+                ORDER BY datetime_start DESC
+                LIMIT 1
+            """
+            
+            try:
+                last_session = await self.db.fetchrow(last_session_query, user_id, str(workout.app_workout_uuid))
+                
+                # Добавляем информацию о последней сессии к объекту тренировки
+                if last_session:
+                    session_dict = dict(last_session)
+                    workout_session_uuid = session_dict.get('workout_session_uuid')
+                    workout.last_session_uuid = workout_session_uuid
+                    workout.last_session_start = session_dict.get('datetime_start')
+                    workout.last_session_stop = session_dict.get('datetime_stop')
+                    workout.last_session_status = session_dict.get('status')
+                    
+                    # Если нашли сессию тренировки, ищем информацию о последнем упражнении
+                    if workout_session_uuid:
+                        # Запрос на получение последнего упражнения в тренировке
+                        last_exercise_query = """
+                            SELECT 
+                                exercise_session_uuid,
+                                datetime_start,
+                                datetime_end,
+                                status
+                            FROM user_exercise_sessions
+                            WHERE workout_session_uuid = $1
+                            ORDER BY datetime_start DESC
+                            LIMIT 1
+                        """
+                        
+                        last_exercise = await self.db.fetchrow(last_exercise_query, str(workout_session_uuid))
+                        if last_exercise:
+                            exercise_dict = dict(last_exercise)
+                            workout.last_exercise_session_uuid = exercise_dict.get('exercise_session_uuid')
+                            workout.last_exercise_start = exercise_dict.get('datetime_start')
+                            workout.last_exercise_stop = exercise_dict.get('datetime_end')
+                            workout.last_exercise_status = exercise_dict.get('status')
+                        
+                        # Подсчитываем суммарное время всех упражнений в тренировке
+                        total_time_query = """
+                            SELECT 
+                                datetime_start,
+                                datetime_end
+                            FROM user_exercise_sessions
+                            WHERE workout_session_uuid = $1 AND datetime_end IS NOT NULL
+                        """
+                        
+                        exercise_times = await self.db.fetch(total_time_query, str(workout_session_uuid))
+                        total_seconds = 0
+                        
+                        if exercise_times:
+                            for exercise_time in exercise_times:
+                                time_dict = dict(exercise_time)
+                                start_time = time_dict.get('datetime_start')
+                                end_time = time_dict.get('datetime_end')
+                                
+                                # Вычисляем разницу только если оба значения не None
+                                if start_time and end_time:
+                                    time_diff = end_time - start_time
+                                    total_seconds += time_diff.total_seconds()
+                            
+                            workout.total_workout_time = int(total_seconds)
+                else:
+                    workout.last_session_uuid = None
+                    workout.last_session_start = None
+                    workout.last_session_stop = None
+                    workout.last_session_status = None
+                    workout.last_exercise_session_uuid = None
+                    workout.last_exercise_start = None
+                    workout.last_exercise_stop = None
+                    workout.last_exercise_status = None
+                    workout.total_workout_time = None
+            except Exception as e:
+                logger.error(f"Ошибка при получении информации о последней сессии: {str(e)}")
+                workout.last_session_uuid = None
+                workout.last_session_start = None
+                workout.last_session_stop = None
+                workout.last_session_status = None
+                workout.last_exercise_session_uuid = None
+                workout.last_exercise_start = None
+                workout.last_exercise_stop = None
+                workout.last_exercise_status = None
+                workout.total_workout_time = None
             
             return workout
         except Exception as e:
@@ -622,6 +873,10 @@ class TrainingService:
             Созданная тренировка
         """
         try:
+            # Убедимся, что подключение к БД установлено
+            if not self.db._pool:
+                await self.db.connect()
+                
             async with self.db._pool.acquire() as conn:
                 async with conn.transaction():
                     query = """
@@ -688,6 +943,10 @@ class TrainingService:
             current_workout = await self.get_app_workout_by_id(workout_uuid, user_id)
             if not current_workout:
                 return None
+            
+            # Убедимся, что подключение к БД установлено
+            if not self.db._pool:
+                await self.db.connect()
             
             async with self.db._pool.acquire() as conn:
                 async with conn.transaction():
@@ -773,7 +1032,7 @@ class TrainingService:
             logger.error(f"Ошибка при удалении пользовательской тренировки {workout_uuid}: {str(e)}")
             raise
     
-    async def _get_app_workout_exercises(self, workout_uuid: Union[str, UUID]) -> List[AppWorkoutExercise]:
+    async def _get_app_workout_exercises(self, workout_uuid: Optional[Union[str, UUID]]) -> List[AppWorkoutExercise]:
         """
         Получает упражнения для пользовательской тренировки
         
@@ -784,10 +1043,14 @@ class TrainingService:
             Список упражнений для тренировки с добавленным порядковым номером (order)
         """
         try:
+            if workout_uuid is None:
+                return []
+                
             workout_uuid_str = str(workout_uuid)
             
             query = """
-                SELECT awe.*, e.title as exercise_name, e.description as exercise_description, e.gif_uuid, mg.name as muscle_group_name
+                SELECT awe.*, e.title as exercise_name, e.description as exercise_description, e.gif_uuid, 
+                       mg.name as muscle_group_name, mg.id as muscle_group_id
                 FROM app_workout_exercises awe
                 JOIN exercises e ON awe.exercise_id = e.exercise_id
                 LEFT JOIN muscle_groups mg ON e.muscle_group_id = mg.id

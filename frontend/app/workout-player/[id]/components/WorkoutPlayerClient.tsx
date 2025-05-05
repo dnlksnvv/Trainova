@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useWorkout } from '../hooks/useWorkout';
 import { formatTime } from '../utils/formatters';
 import { Workout, Exercise } from '@/app/types';
@@ -15,13 +15,16 @@ import InfoIcon from '@mui/icons-material/Info';
 import CloseIcon from '@mui/icons-material/Close';
 import { motion, AnimatePresence } from 'framer-motion';
 import ExerciseImage from './ExerciseImage';
-import { workoutProgressApi } from '@/app/services/api';
+import { workoutProgressApi, WorkoutProgressDto } from '@/app/services/api';
+import { useGif } from '../context/GifContext';
 
 interface WorkoutPlayerClientProps {
   workout: Workout;
+  initialExerciseId?: string | null;
+  initialExerciseSessionUuid?: string | null;
 }
 
-export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProps) {
+export default function WorkoutPlayerClient({ workout, initialExerciseId, initialExerciseSessionUuid }: WorkoutPlayerClientProps) {
   const router = useRouter();
   const [infoOpen, setInfoOpen] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -47,6 +50,11 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
   const [exerciseStartTime, setExerciseStartTime] = useState<number>(0);
   const [autoNextProgress, setAutoNextProgress] = useState<number>(0);
   const autoNextTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [loggedExerciseEnd, setLoggedExerciseEnd] = useState<string | null>(null);
+  const [exerciseSessionUuids, setExerciseSessionUuids] = useState<{[key: string]: string}>({});
+  const searchParams = useSearchParams();
+  const resumeParam = searchParams.get('resume');
+  const isResuming = resumeParam === 'true';
 
   const {
     currentExercise,
@@ -64,20 +72,87 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
   } = useWorkout({
     workout,
     onComplete: () => {
-      console.log('Тренировка завершена!');
+      console.log('❗️Тренировка завершена!');
       setIsCompleted(true);
     },
     onExerciseTimeComplete: () => {
-      console.log('Время упражнения истекло!');
+      console.log('❗️Время упражнения истекло!');
       // Ничего не делаем, всё будет через отображаемый счётчик
     }
   });
+
+  // Получаем доступ к контексту Gif для очистки кэша
+  const { clearGifCache } = useGif();
 
   // Синхронизация состояния с хуком
   useEffect(() => {
     setIsPaused(workoutPaused);
     setIsCompleted(workoutCompleted);
   }, [workoutPaused, workoutCompleted]);
+
+  // Функция для добавления ID текущего упражнения в URL
+  const updateUrlWithExerciseId = useCallback((exerciseId: string) => {
+    const url = new URL(window.location.href);
+    // Сохраняем параметр session, если он есть
+    const sessionParam = url.searchParams.get('session');
+    // Сохраняем параметр exercise_session_uuid, если он есть
+    const exerciseSessionUuidParam = url.searchParams.get('exercise_session_uuid');
+    
+    // Обновляем URL с новым exerciseId
+    url.searchParams.set('exerciseId', exerciseId);
+    if (sessionParam) {
+      url.searchParams.set('session', sessionParam);
+    }
+    // Сохраняем параметр exercise_session_uuid
+    if (exerciseSessionUuidParam) {
+      url.searchParams.set('exercise_session_uuid', exerciseSessionUuidParam);
+    }
+    
+    window.history.replaceState(null, '', url.toString());
+  }, []);
+
+  // Обновление URL при смене упражнения
+  useEffect(() => {
+    if (currentExercise?.id) {
+      updateUrlWithExerciseId(currentExercise.id);
+    }
+  }, [currentExercise?.id, updateUrlWithExerciseId]);
+
+  // Обработка initialExerciseSessionUuid при монтировании компонента
+  useEffect(() => {
+    if (initialExerciseSessionUuid && initialExerciseId) {
+      console.log(`Инициализация с предоставленным exercise_session_uuid: ${initialExerciseSessionUuid} для упражнения: ${initialExerciseId}`);
+      
+      // Сохраняем initialExerciseSessionUuid в состоянии для initialExerciseId
+      setExerciseSessionUuids(prev => ({
+        ...prev,
+        [initialExerciseId]: initialExerciseSessionUuid
+      }));
+    }
+  }, [initialExerciseSessionUuid, initialExerciseId]);
+
+  // Фиксируем проблему с переходом к первому упражнению в продакшн режиме
+  // Используем два useEffect для предотвращения гонки условий
+  useEffect(() => {
+    // Предотвращаем автоматический переход к первому упражнению, если был указан initialExerciseId
+    const hasManualInit = window.sessionStorage.getItem('manualInitialization') === 'true';
+    
+    if (hasManualInit && initialExerciseId) {
+      console.log('Предотвращаем автоматическое перемещение к первому упражнению');
+      
+      // Удаляем флаг после использования
+      window.sessionStorage.removeItem('manualInitialization');
+      
+      // Дополнительно проверяем текущее упражнение
+      if (currentExercise && currentExercise.id !== initialExerciseId) {
+        console.log(`Текущее упражнение (${currentExercise.id}) не соответствует initialExerciseId (${initialExerciseId}), исправляем...`);
+        const exerciseIndex = workout.exercises.findIndex(ex => ex.id === initialExerciseId);
+        if (exerciseIndex !== -1) {
+          skipToExercise(exerciseIndex);
+        }
+      }
+    }
+  }, [currentExercise, initialExerciseId, workout.exercises]);
 
   // Инициализация таймера для текущего упражнения
   useEffect(() => {
@@ -113,6 +188,14 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     }
   }, [currentExercise?.id]);
 
+  // Функция для генерации UUID
+  const generateUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
   // Функция для запуска отсчета перед началом упражнения
   const startCountdown = () => {
     // Очищаем предыдущий таймер если он есть
@@ -135,6 +218,70 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
         setCountdownValue(null);
         // Запускаем упражнение
         setIsPaused(false);
+        
+        // Логируем и отправляем информацию о начале упражнения
+        if (currentExercise) {
+          // Генерируем или используем UUID для сессии упражнения
+          let exerciseSessionUuid = exerciseSessionUuids[currentExercise.id];
+          
+          if (!exerciseSessionUuid) {
+            // Если в URL передан exercise_session_uuid и это подходящее упражнение, используем его
+            if (initialExerciseSessionUuid && currentExercise.id === initialExerciseId) {
+              exerciseSessionUuid = initialExerciseSessionUuid;
+              console.log(`Используем exercise_session_uuid из URL для упражнения ${currentExercise.id}: ${exerciseSessionUuid}`);
+            } else {
+              // Иначе генерируем новый UUID
+              exerciseSessionUuid = generateUUID();
+              console.log(`Генерируем новый UUID для упражнения ${currentExercise.id}: ${exerciseSessionUuid}`);
+            }
+            
+            setExerciseSessionUuids(prev => ({
+              ...prev,
+              [currentExercise.id]: exerciseSessionUuid
+            }));
+            
+            // Добавляем UUID сессии в URL
+            const url = new URL(window.location.href);
+            url.searchParams.set('exercise_session_uuid', exerciseSessionUuid);
+            window.history.replaceState(null, '', url.toString());
+            
+            console.log(`UUID сессии для упражнения ${currentExercise.id} добавлен в URL: ${exerciseSessionUuid}`);
+          
+            const startInfo: WorkoutProgressDto = {
+              datetime_start: new Date().toISOString(),
+              status: "start",
+              workout_session_uuid: new URLSearchParams(window.location.search).get('session') || "",
+              workout_uuid: workout.id || "",
+              exercise_uuid: currentExercise.id || "",
+              exercise_session_uuid: exerciseSessionUuid
+            };
+            console.log("❗️Начало упражнения:", startInfo);
+            
+            // Отправляем данные на сервер
+            try {
+              // Используем немедленно вызываемую асинхронную функцию
+              (async () => {
+                try {
+                  await workoutProgressApi.saveProgress(startInfo);
+                  console.log("Данные о начале упражнения успешно отправлены");
+                } catch (error) {
+                  console.error('Ошибка при отправке информации о начале упражнения:', error);
+                }
+              })();
+            } catch (error) {
+              console.error('Ошибка при отправке информации о начале упражнения:', error);
+            }
+          } else {
+            console.log(`Используем существующий UUID сессии для упражнения ${currentExercise.id}: ${exerciseSessionUuid}`);
+            
+            // Если мы повторно запускаем упражнение (например, после возврата назад)
+            // и у него уже есть UUID сессии, нужно убедиться, что флаг loggedExerciseEnd сброшен
+            if (loggedExerciseEnd === currentExercise.id) {
+              console.log(`Сбрасываем флаг завершения для упражнения ${currentExercise.id} при повторном запуске`);
+              setLoggedExerciseEnd(null);
+            }
+          }
+        }
       }
     };
     
@@ -189,10 +336,45 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
   // Обработка завершения тренировки
   useEffect(() => {
     if (isCompleted) {
-      // Можно добавить логику для сохранения результатов
-      console.log('Тренировка завершена!');
+      console.log('❗️Тренировка завершена!');
+      
+      // Асинхронно сохраняем прогресс
+      const saveProgress = async () => {
+        try {
+          // Получаем UUID сессии из URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const sessionUuid = urlParams.get('session');
+          
+          if (!sessionUuid) {
+            console.error('UUID сессии не найден в URL при завершении тренировки');
+            return;
+          }
+          
+          const endPayload: WorkoutProgressDto = {
+            workout_uuid: workout.id || "",
+            workout_session_uuid: sessionUuid,
+            datetime_end: new Date().toISOString(),
+            status: "ended"
+          };
+          
+          console.log('Отправляем данные о завершении тренировки:', endPayload);
+          
+          // Используем API из services/api.ts для сохранения прогресса
+          const response = await workoutProgressApi.saveProgress(endPayload);
+          console.log(`Тренировка с ID ${workout.id} сохранена в прогрессе:`, response);
+          
+          // Устанавливаем флаг успешного сохранения
+          setSaveSuccess(true);
+        } catch (error) {
+          console.error('Ошибка при автоматическом сохранении прогресса тренировки:', error);
+          // Даже при ошибке устанавливаем флаг успешного сохранения для упрощения UX
+          setSaveSuccess(true);
+        }
+      };
+      
+      saveProgress();
     }
-  }, [isCompleted]);
+  }, [isCompleted, workout.id]);
 
   // Переход к следующему упражнению
   const handleNext = () => {
@@ -210,7 +392,117 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     if (autoNextTimerRef.current) {
       clearTimeout(autoNextTimerRef.current);
       autoNextTimerRef.current = null;
-      setAutoNextProgress(0);
+      // Не сбрасываем прогресс, оставляем его как есть
+      // setAutoNextProgress(0);
+    }
+
+    // Логируем информацию о выполнении упражнения
+    if (currentExercise) {
+      // Собираем статистику выполнения
+      let completedDuration = 0;
+      let totalDuration = 0;
+      let completedReps = 0;
+      let totalReps = 0;
+      
+      if (isRepBased) {
+        totalReps = currentExercise.reps || 0;
+        completedReps = currentReps;
+        console.log(`❗️EXERCISE STATS: Выполнено ${currentReps}/${totalReps} повторений`);
+      } else {
+        totalDuration = currentExercise.duration;
+        completedDuration = currentExercise.duration - timeRemaining;
+        console.log(`❗️EXERCISE STATS: Выполнено ${completedDuration}/${totalDuration} секунд`);
+      }
+      
+      // Выводим информативную структуру в консоль
+      console.log("❗️EXERCISE STATS:");
+      console.log(`duration: ${totalDuration}`);
+      console.log(`user_duration: ${completedDuration}`);
+      console.log(`count: ${totalReps}`);
+      console.log(`user_count: ${completedReps}`);
+      
+      // Логируем информацию о пропуске упражнения
+      if ((isRepBased && currentReps < totalReps) || (!isRepBased && timeRemaining > 0)) {
+        console.log(`❗️EXERCISE SKIPPED: Упражнение "${currentExercise.name}" пропущено пользователем`);
+      }
+    }
+
+    // Если текущее упражнение имеет UUID, но не было завершено, отправляем запрос о завершении
+    if (currentExercise && exerciseSessionUuids[currentExercise.id] && loggedExerciseEnd !== currentExercise.id) {
+      const exerciseSessionUuid = exerciseSessionUuids[currentExercise.id];
+      
+      // Собираем статистику выполнения
+      let completedDuration = 0;
+      let totalDuration = 0;
+      let completedReps = 0;
+      let totalReps = 0;
+      
+      if (isRepBased) {
+        totalReps = currentExercise.reps || 0;
+        completedReps = currentReps;
+      } else {
+        totalDuration = currentExercise.duration;
+        completedDuration = currentExercise.duration - timeRemaining;
+      }
+      
+      const endInfo: WorkoutProgressDto = {
+        datetime_end: new Date().toISOString(),
+        status: "ended",
+        workout_session_uuid: new URLSearchParams(window.location.search).get('session') || "",
+        workout_uuid: workout.id || "",
+        exercise_uuid: currentExercise.id || "",
+        exercise_session_uuid: exerciseSessionUuid,
+        // Добавляем статистику выполнения
+        duration: totalDuration,
+        user_duration: completedDuration,
+        count: totalReps,
+        user_count: completedReps
+      };
+      console.log("❗️Ручное завершение упражнения при переходе вперед:", endInfo);
+      
+      // Немедленно удаляем UUID из состояния и URL
+      setExerciseSessionUuids(prev => {
+        const newState = {...prev};
+        delete newState[currentExercise.id];
+        return newState;
+      });
+      
+      // Удаляем параметр exercise_session из URL
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('exercise_session')) {
+        url.searchParams.delete('exercise_session');
+        window.history.replaceState(null, '', url.toString());
+        console.log('Удален параметр exercise_session из URL при ручном переходе вперед');
+      }
+      
+      // Удаляем параметр exercise_session_uuid из URL
+      if (url.searchParams.has('exercise_session_uuid')) {
+        url.searchParams.delete('exercise_session_uuid');
+        window.history.replaceState(null, '', url.toString());
+        console.log('Удален параметр exercise_session_uuid из URL при ручном переходе вперед');
+      }
+      
+      // Отправляем данные асинхронно
+      try {
+        (async () => {
+          try {
+            await workoutProgressApi.saveProgress(endInfo);
+            console.log("Данные о ручном завершении упражнения успешно отправлены");
+          } catch (error) {
+            console.error('Ошибка при отправке информации о ручном завершении упражнения:', error);
+          } finally {
+            // Запускаем таймер автоматического перехода независимо от результата запроса
+            startAutoNextTimer();
+          }
+        })();
+      } catch (error) {
+        console.error('Ошибка при отправке информации о ручном завершении упражнения:', error);
+        // Запускаем таймер автоматического перехода даже при ошибке
+        startAutoNextTimer();
+      }
+      
+      // Отмечаем упражнение как завершенное
+      setLoggedExerciseEnd(currentExercise.id);
     }
 
     // Если это последнее упражнение, завершаем тренировку
@@ -244,11 +536,130 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     if (autoNextTimerRef.current) {
       clearTimeout(autoNextTimerRef.current);
       autoNextTimerRef.current = null;
-      setAutoNextProgress(0);
+      // Не сбрасываем прогресс, оставляем его как есть
+      // setAutoNextProgress(0);
+    }
+    
+    // Очищаем основной таймер, если он запущен
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // Логируем информацию о выполнении упражнения
+    if (currentExercise) {
+      // Собираем статистику выполнения
+      let completedDuration = 0;
+      let totalDuration = 0;
+      let completedReps = 0;
+      let totalReps = 0;
+      
+      if (isRepBased) {
+        totalReps = currentExercise.reps || 0;
+        completedReps = currentReps;
+        console.log(`❗️EXERCISE STATS: Выполнено ${currentReps}/${totalReps} повторений`);
+      } else {
+        totalDuration = currentExercise.duration;
+        completedDuration = currentExercise.duration - timeRemaining;
+        console.log(`❗️EXERCISE STATS: Выполнено ${completedDuration}/${totalDuration} секунд`);
+      }
+      
+      // Выводим информативную структуру в консоль
+      console.log("❗️EXERCISE STATS:");
+      console.log(`duration: ${totalDuration}`);
+      console.log(`user_duration: ${completedDuration}`);
+      console.log(`count: ${totalReps}`);
+      console.log(`user_count: ${completedReps}`);
+      
+      // Логируем информацию о пропуске упражнения
+      if ((isRepBased && currentReps < totalReps) || (!isRepBased && timeRemaining > 0)) {
+        console.log(`❗️EXERCISE SKIPPED: Упражнение "${currentExercise.name}" пропущено пользователем (возврат назад)`);
+      }
+    }
+
+    // Если текущее упражнение имеет UUID, но не было завершено, отправляем запрос о завершении
+    if (currentExercise && exerciseSessionUuids[currentExercise.id] && loggedExerciseEnd !== currentExercise.id) {
+      const exerciseSessionUuid = exerciseSessionUuids[currentExercise.id];
+      
+      // Собираем статистику выполнения
+      let completedDuration = 0;
+      let totalDuration = 0;
+      let completedReps = 0;
+      let totalReps = 0;
+      
+      if (isRepBased) {
+        totalReps = currentExercise.reps || 0;
+        completedReps = currentReps;
+      } else {
+        totalDuration = currentExercise.duration;
+        completedDuration = currentExercise.duration - timeRemaining;
+      }
+      
+      const endInfo: WorkoutProgressDto = {
+        datetime_end: new Date().toISOString(),
+        status: "ended",
+        workout_session_uuid: new URLSearchParams(window.location.search).get('session') || "",
+        workout_uuid: workout.id || "",
+        exercise_uuid: currentExercise.id || "",
+        exercise_session_uuid: exerciseSessionUuid,
+        // Добавляем статистику выполнения
+        duration: totalDuration,
+        user_duration: completedDuration,
+        count: totalReps,
+        user_count: completedReps
+      };
+      console.log("❗️Ручное завершение упражнения при переходе назад:", endInfo);
+      
+      // Немедленно удаляем UUID из состояния и URL
+      setExerciseSessionUuids(prev => {
+        const newState = {...prev};
+        delete newState[currentExercise.id];
+        return newState;
+      });
+      
+      // Удаляем параметр exercise_session из URL
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('exercise_session')) {
+        url.searchParams.delete('exercise_session');
+        window.history.replaceState(null, '', url.toString());
+        console.log('Удален параметр exercise_session из URL при ручном переходе назад');
+      }
+      
+      // Удаляем параметр exercise_session_uuid из URL
+      if (url.searchParams.has('exercise_session_uuid')) {
+        url.searchParams.delete('exercise_session_uuid');
+        window.history.replaceState(null, '', url.toString());
+        console.log('Удален параметр exercise_session_uuid из URL при ручном переходе назад');
+      }
+      
+      // Отправляем данные асинхронно
+      try {
+        (async () => {
+          try {
+            await workoutProgressApi.saveProgress(endInfo);
+            console.log("Данные о ручном завершении упражнения успешно отправлены");
+          } catch (error) {
+            console.error('Ошибка при отправке информации о ручном завершении упражнения:', error);
+          } finally {
+            // Запускаем таймер автоматического перехода независимо от результата запроса
+            startAutoNextTimer();
+          }
+        })();
+      } catch (error) {
+        console.error('Ошибка при отправке информации о ручном завершении упражнения:', error);
+        // Запускаем таймер автоматического перехода даже при ошибке
+        startAutoNextTimer();
+      }
+      
+      // Отмечаем упражнение как завершенное
+      setLoggedExerciseEnd(currentExercise.id);
     }
 
     const currentTime = Date.now();
     const timeElapsed = currentTime - exerciseStartTime;
+    
+    // Устанавливаем состояние воспроизведения (не на паузе)
+    setIsPaused(false);
     
     // Для упражнений с таймером
     if (!isRepBased) {
@@ -257,16 +668,43 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
         prevExercise();
         setInitialExerciseLoad(true);
       } else {
-        // Иначе сбрасываем текущее упражнение
-        // Для упражнений с таймером
+        // Иначе сбрасываем текущее упражнение полностью, включая перезагрузку гифки
         if (currentExercise) {
+          // Сбрасываем состояние таймера
           setTimeRemaining(currentExercise.duration);
-          // Запускаем отсчет только если GIF уже загружен
-          if (!isGifLoading) {
-            startCountdown();
+          
+          // Сохраняем текущий URL гифки перед изменением
+          const oldUrl = currentExercise.imageUrl;
+          
+          // Сбрасываем URL гифки, чтобы вызвать перезагрузку
+          // Добавляем временную метку к URL, чтобы заставить загрузить новую версию
+          const timestamp = new Date().getTime();
+          if (currentExercise.imageUrl) {
+            const baseUrl = currentExercise.imageUrl.split('?')[0];
+            currentExercise.imageUrl = `${baseUrl}?t=${timestamp}`;
+            
+            // Очищаем кэш для старого URL, если это возможно
+            if (oldUrl) {
+              clearGifCache(oldUrl);
+              console.log(`Очищен кэш для гифки: ${oldUrl}`);
+            }
           }
+          
+          // Сбрасываем состояние анимации
+          setAnimationPaused(false);
+          
+          // Сбрасываем состояние загрузки гифки
+          setIsGifLoading(true);
+          setInitialExerciseLoad(true);
+          
+          // Мы НЕ запускаем отсчет здесь - он запустится автоматически в handleGifLoad
+          // когда гифка загрузится
+          
+          setExerciseStartTime(Date.now()); // Обновляем время начала
+          
+          // Важно: сбрасываем флаг логирования для текущего упражнения
+          setLoggedExerciseEnd(null);
         }
-        setExerciseStartTime(Date.now()); // Обновляем время начала
       }
     } 
     // Для упражнений с повторениями
@@ -276,14 +714,40 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
         prevExercise();
         setInitialExerciseLoad(true);
       } else {
-        // Иначе сбрасываем текущее упражнение
+        // Иначе сбрасываем текущее упражнение полностью, включая перезагрузку гифки
         setCurrentReps(0);
-        setInitialExerciseLoad(true);
-        // Запускаем отсчет только если GIF уже загружен
-        if (!isGifLoading) {
-          startCountdown();
+        
+        // Сохраняем текущий URL гифки перед изменением
+        const oldUrl = currentExercise?.imageUrl;
+        
+        // Сбрасываем URL гифки, чтобы вызвать перезагрузку
+        // Добавляем временную метку к URL, чтобы заставить загрузить новую версию
+        if (currentExercise?.imageUrl) {
+          const timestamp = new Date().getTime();
+          const baseUrl = currentExercise.imageUrl.split('?')[0];
+          currentExercise.imageUrl = `${baseUrl}?t=${timestamp}`;
+          
+          // Очищаем кэш для старого URL, если это возможно
+          if (oldUrl) {
+            clearGifCache(oldUrl);
+            console.log(`Очищен кэш для гифки: ${oldUrl}`);
+          }
         }
+        
+        // Сбрасываем состояние анимации
+        setAnimationPaused(false);
+        
+        // Сбрасываем состояние загрузки гифки
+        setIsGifLoading(true);
+        setInitialExerciseLoad(true);
+        
+        // Мы НЕ запускаем отсчет здесь - он запустится автоматически в handleGifLoad
+        // когда гифка загрузится
+        
         setExerciseStartTime(Date.now()); // Обновляем время начала
+        
+        // Важно: сбрасываем флаг логирования для текущего упражнения
+        setLoggedExerciseEnd(null);
       }
     }
   };
@@ -301,6 +765,19 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
       setCountdownValue(null);
       setIsPaused(true);
       togglePause(); // Добавляем вызов togglePause(), чтобы синхронизировать состояние
+      return;
+    }
+    
+    // Проверяем, завершено ли текущее упражнение
+    const isExerciseCompleted = 
+      (isRepBased && currentReps >= totalReps) || 
+      (!isRepBased && timeRemaining === 0);
+    
+    // Если упражнение уже завершено, просто переключаем состояние паузы без запуска отсчета
+    if (isExerciseCompleted) {
+      setIsPaused(prev => !prev);
+      togglePause();
+      console.log('Упражнение уже завершено, переключаем паузу без запуска отсчета');
       return;
     }
     
@@ -372,26 +849,49 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
 
   // Обработчик успешной загрузки GIF
   const handleGifLoad = () => {
-    console.log("GIF загружен");
+    // Отмечаем, что GIF загрузился
     setIsGifLoading(false);
     
-    // Теперь, когда GIF загружен, можем начать отсчет, если это начальная загрузка
+    // Если это первая загрузка упражнения, показываем отсчет 3, 2, 1 независимо от режима паузы
     if (initialExerciseLoad) {
-      console.log('GIF загружен, начинаем отсчет');
-      setTimeout(() => {
-        // Запускаем отсчет для упражнений с повторениями только если не на паузе,
-        // а для упражнений на время запускаем всегда при первой загрузке
-        if (!isRepBased || !isPaused) {
-          startCountdown();
-        }
-        setInitialExerciseLoad(false);
-      }, 500);
-    } else {
       setInitialExerciseLoad(false);
+      setIsPaused(false); // Устанавливаем режим воспроизведения
+      startCountdown();
     }
     
-    // Записываем время начала упражнения
-    setExerciseStartTime(Date.now());
+    // Сохраняем информацию о начале тренировки при загрузке первого упражнения
+    if (exerciseIndex === 0 && initialExerciseLoad) {
+      // Асинхронно отправляем запрос о начале тренировки
+      const saveStartInfo = async () => {
+        try {
+          // Получаем UUID сессии из URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const sessionUuid = urlParams.get('session');
+          
+          if (!sessionUuid) {
+            console.error('UUID сессии не найден в URL');
+            return;
+          }
+          
+          const startPayload: WorkoutProgressDto = {
+            workout_uuid: workout.id || "",
+            workout_session_uuid: sessionUuid,
+            datetime_start: new Date().toISOString(),
+            status: "start"
+          };
+          
+          console.log('Отправляем информацию о начале тренировки:', startPayload);
+          
+          await workoutProgressApi.saveProgress(startPayload);
+          
+          console.log('Информация о начале тренировки сохранена');
+        } catch (error) {
+          console.error('Ошибка при сохранении информации о начале тренировки:', error);
+        }
+      };
+      
+      saveStartInfo();
+    }
   };
 
   // Обработчик ошибки загрузки GIF
@@ -440,33 +940,37 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
 
   // Функция для сохранения прогресса тренировки и перехода к списку тренировок
   const saveWorkoutProgressAndExit = async () => {
+    console.log('Сохранение прогресса и выход');
     setIsSaving(true);
     
     try {
-      // Используем API из services/api.ts для сохранения прогресса
-      // Не передаем user_id - он будет определен в API автоматически
-      const response = await workoutProgressApi.saveProgress({
+      // Определяем статус в зависимости от завершенности
+      const status = isCompleted ? 'ended' : 'start';
+      const currentDateTime = new Date().toISOString();
+      
+      // Сохраняем прогресс тренировки
+      await workoutProgressApi.saveProgress({
         workout_uuid: workout.id,
-        completed_at: new Date().toISOString()
+        workout_session_uuid: new URL(window.location.href).searchParams.get('session') || '',
+        status: status,
+        datetime_end: isCompleted || status === 'ended' ? currentDateTime : undefined,
+        datetime_start: status === 'start' ? currentDateTime : undefined
       });
       
-      console.log(`Тренировка с ID ${workout.id} сохранена в прогрессе:`, response);
       setSaveSuccess(true);
       
-      // Перенаправляем через короткую задержку
+      // Задержка перед редиректом, чтобы пользователь увидел сообщение об успехе
       setTimeout(() => {
+        // Перенаправляем на страницу тренировок
         router.push('/trainings');
       }, 1000);
     } catch (error) {
-      console.error('Ошибка при сохранении прогресса тренировки:', error);
+      console.error('Ошибка при сохранении прогресса:', error);
       
-      // Даже при ошибке позволяем пользователю завершить тренировку
-      setSaveSuccess(true);
+      // Даже при ошибке перенаправляем на страницу тренировок через 2 секунды
       setTimeout(() => {
         router.push('/trainings');
-      }, 1000);
-    } finally {
-      setIsSaving(false);
+      }, 2000);
     }
   };
 
@@ -493,7 +997,8 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
       autoNextTimerRef.current = null;
     }
     
-    setAutoNextProgress(0);
+    // НЕ сбрасываем прогресс обратно в 0
+    // setAutoNextProgress(0);
     
     // Запускаем интервал для обновления прогресса
     let startTime = Date.now();
@@ -508,6 +1013,8 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
         autoNextTimerRef.current = setTimeout(updateProgress, 50);
       } else {
         // Когда прогресс достиг 100%, переходим к следующему упражнению
+        // Сохраняем прогресс в 100%
+        setAutoNextProgress(100);
         handleNext();
       }
     };
@@ -520,9 +1027,217 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
     // Запускаем таймер автоперехода, когда упражнение завершено (время истекло или все повторения выполнены)
     if (!isGifLoading && !showingCountdown && !isPaused && 
         ((isRepBased && currentReps >= totalReps) || (!isRepBased && timeRemaining === 0))) {
-      startAutoNextTimer();
+      
+      // Логируем информацию об автоматическом завершении упражнения
+      if (currentExercise) {
+        // Собираем статистику выполнения
+        let completedDuration = 0;
+        let totalDuration = 0;
+        let completedReps = 0;
+        let totalReps = 0;
+        
+        if (isRepBased) {
+          totalReps = currentExercise.reps || 0;
+          completedReps = currentReps;
+          console.log(`❗️EXERCISE COMPLETED: Выполнено ${currentReps}/${totalReps} повторений`);
+        } else {
+          totalDuration = currentExercise.duration;
+          completedDuration = currentExercise.duration;  // Полностью выполнено
+          console.log(`❗️EXERCISE COMPLETED: Выполнено ${completedDuration}/${currentExercise.duration} секунд`);
+        }
+        
+        // Выводим информативную структуру в консоль
+        console.log("❗️EXERCISE COMPLETED STATS:");
+        console.log(`duration: ${totalDuration}`);
+        console.log(`user_duration: ${completedDuration}`);
+        console.log(`count: ${totalReps}`);
+        console.log(`user_count: ${completedReps}`);
+      }
+      
+      // Логируем информацию о завершении упражнения
+      if (currentExercise && loggedExerciseEnd !== currentExercise.id) {
+        // Используем тот же UUID сессии упражнения, что и при начале
+        const exerciseSessionUuid = exerciseSessionUuids[currentExercise.id];
+        
+        if (!exerciseSessionUuid) {
+          console.error('UUID сессии упражнения не найден для', currentExercise.id);
+          
+          // Если UUID не найден, запускаем таймер без отправки данных
+          startAutoNextTimer();
+        } else {
+          // Формируем данные статистики упражнения
+          let completedDuration = 0;
+          let totalDuration = 0;
+          let completedReps = 0;
+          let totalReps = 0;
+          
+          // Для упражнений с таймером
+          if (!isRepBased && currentExercise.duration) {
+            totalDuration = currentExercise.duration;
+            completedDuration = currentExercise.duration - timeRemaining;
+          }
+          // Для упражнений с повторениями
+          if (isRepBased && currentExercise.reps) {
+            totalReps = currentExercise.reps;
+            completedReps = currentReps;
+          }
+          
+          // Выводим информативную структуру в консоль
+          console.log("❗️EXERCISE FINAL STATS:");
+          console.log(`duration: ${totalDuration}`);
+          console.log(`user_duration: ${completedDuration}`);
+          console.log(`count: ${totalReps}`);
+          console.log(`user_count: ${completedReps}`);
+          
+          const endInfo: WorkoutProgressDto = {
+            datetime_end: new Date().toISOString(),
+            status: "ended",
+            workout_session_uuid: new URLSearchParams(window.location.search).get('session') || "",
+            workout_uuid: workout.id || "",
+            exercise_uuid: currentExercise.id || "",
+            exercise_session_uuid: exerciseSessionUuid,
+            // Добавляем статистику выполнения
+            duration: totalDuration,
+            user_duration: completedDuration,
+            count: totalReps,
+            user_count: completedReps
+          };
+          console.log("❗️Завершение упражнения:", endInfo);
+          setLoggedExerciseEnd(currentExercise.id);
+          
+          // Отправляем данные о завершении упражнения
+          try {
+            // Используем немедленно вызываемую асинхронную функцию
+            (async () => {
+              try {
+                await workoutProgressApi.saveProgress(endInfo);
+                console.log("Данные о завершении упражнения успешно отправлены");
+                
+                // После успешной отправки запроса о завершении, удаляем UUID сессии упражнения
+                setExerciseSessionUuids(prev => {
+                  const newState = {...prev};
+                  delete newState[currentExercise.id];
+                  return newState;
+                });
+                
+                // Удаляем параметр exercise_session из URL
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('exercise_session')) {
+                  url.searchParams.delete('exercise_session');
+                  window.history.replaceState(null, '', url.toString());
+                  console.log('Удален параметр exercise_session из URL после завершения упражнения');
+                }
+                
+                // Удаляем параметр exercise_session_uuid из URL
+                if (url.searchParams.has('exercise_session_uuid')) {
+                  url.searchParams.delete('exercise_session_uuid');
+                  window.history.replaceState(null, '', url.toString());
+                  console.log('Удален параметр exercise_session_uuid из URL после завершения упражнения');
+                }
+                
+                console.log(`Удален UUID сессии для упражнения ${currentExercise.id} после завершения`);
+              } catch (error) {
+                console.error('Ошибка при отправке информации о завершении упражнения:', error);
+              } finally {
+                // Запускаем таймер автоматического перехода независимо от результата запроса
+                startAutoNextTimer();
+              }
+            })();
+          } catch (error) {
+            console.error('Ошибка при отправке информации о завершении упражнения:', error);
+            // Запускаем таймер автоматического перехода даже при ошибке
+            startAutoNextTimer();
+          }
+          return; // Выходим из эффекта, чтобы избежать двойного запуска таймера
+        }
+      } else {
+        // Если логирование для этого упражнения уже было выполнено,
+        // просто запускаем таймер автоматического перехода
+        startAutoNextTimer();
+      }
+    } else {
+      // Если условия не выполняются, убедимся, что автоматический переход остановлен
+      if (autoNextTimerRef.current) {
+        clearTimeout(autoNextTimerRef.current);
+        autoNextTimerRef.current = null;
+        // Не сбрасываем прогресс обратно в 0
+        // setAutoNextProgress(0);
+      }
     }
-  }, [isGifLoading, showingCountdown, isPaused, isRepBased, currentReps, totalReps, timeRemaining]);
+  }, [isGifLoading, showingCountdown, isPaused, isRepBased, currentReps, totalReps, timeRemaining, currentExercise, workout.id, loggedExerciseEnd, exerciseSessionUuids]);
+
+  // Сбрасываем флаг логирования при смене упражнения
+  useEffect(() => {
+    setLoggedExerciseEnd(null);
+  }, [currentExercise?.id]);
+
+  // Восстановление UUID сессии из URL при загрузке компонента
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const sessionUuid = url.searchParams.get('exercise_session_uuid') || url.searchParams.get('exercise_session');
+    
+    if (sessionUuid && currentExercise) {
+      console.log(`Восстановлен UUID сессии из URL для текущего упражнения: ${sessionUuid}`);
+      setExerciseSessionUuids(prev => ({
+        ...prev,
+        [currentExercise.id]: sessionUuid
+      }));
+    }
+  }, [currentExercise?.id, currentExercise]);
+
+  // Получение параметра session из URL
+  const getSessionUuid = (): string => {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('session') || '';
+  };
+
+  // Инициализация начального упражнения, если указан initialExerciseId
+  useEffect(() => {
+    if (initialExerciseId && workout.exercises.length > 0) {
+      const exerciseIndex = workout.exercises.findIndex(ex => ex.id === initialExerciseId);
+      
+      if (exerciseIndex !== -1) {
+        console.log(`Инициализация тренировки с упражнения: ${initialExerciseId}, индекс: ${exerciseIndex}`);
+        
+        // Устанавливаем флаг, что идет ручная инициализация
+        window.sessionStorage.setItem('manualInitialization', 'true');
+        
+        // Проверяем, продолжаем ли мы незавершенную тренировку
+        if (isResuming) {
+          console.log('Продолжаем незавершенную тренировку');
+          // Не отправляем новый запрос на начало тренировки
+          // Просто переходим к упражнению
+        } else {
+          // Если это не продолжение, отправляем запрос на начало новой тренировки
+          const startNewWorkout = async () => {
+            try {
+              await workoutProgressApi.saveProgress({
+                workout_uuid: workout.id,
+                workout_session_uuid: getSessionUuid(),
+                status: 'start',
+                datetime_start: new Date().toISOString() // Обязательно устанавливаем время начала
+              });
+              console.log('Тренировка инициализирована:', workout.id);
+            } catch (error) {
+              console.error('Ошибка при инициализации тренировки:', error);
+            }
+          };
+          
+          startNewWorkout();
+        }
+        
+        // При первой загрузке, выполняем переход к упражнению
+        skipToExercise(exerciseIndex);
+        
+        // Добавляем флаг в URL, чтобы предотвратить повторную инициализацию
+        const url = new URL(window.location.href);
+        if (!url.searchParams.has('initialized')) {
+          url.searchParams.set('initialized', 'true');
+          window.history.replaceState(null, '', url.toString());
+        }
+      }
+    }
+  }, [initialExerciseId, workout.exercises.length, isResuming, skipToExercise, workout.id]); // Добавляем skipToExercise и workout.id в зависимость
 
   // Отображение завершения тренировки
   if (isCompleted) {
@@ -592,16 +1307,31 @@ export default function WorkoutPlayerClient({ workout }: WorkoutPlayerClientProp
                 >
                   Прогресс успешно сохранен
                 </Typography>
-                <Typography variant="body2" sx={{ color: 'textColors.secondary' }}>
-                  Перенаправление на список тренировок...
-                </Typography>
+                <Button 
+                  variant="contained" 
+                  fullWidth
+                  size="large"
+                  onClick={() => router.push('/trainings')}
+                  sx={{ 
+                    mt: 2,
+                    py: 1.5,
+                    bgcolor: 'highlight.main',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    '&:hover': {
+                      bgcolor: 'highlight.accent'
+                    }
+                  }}
+                >
+                  Вернуться к тренировкам
+                </Button>
               </Box>
             ) : (
               <Button 
                 variant="contained" 
                 fullWidth
                 size="large"
-                onClick={saveWorkoutProgressAndExit}
+                onClick={() => saveWorkoutProgressAndExit()}
                 disabled={isSaving}
                 sx={{ 
                   mt: 2,

@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status, File, UploadFile, Form
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 import os
-import shutil
 from pathlib import Path
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import logging
 
 from training.application.services.exercises_service import ExercisesService
@@ -15,11 +14,9 @@ from training.application.services.activity_service import ActivityService
 from training.domain.schemas import (
     Exercise, ExerciseCreate, ExerciseUpdate,
     Training, TrainingCreate, TrainingUpdate,
-    UserTraining, UserTrainingCreate, UserTrainingUpdate,
-    UserProgress, UserProgressCreate, UserProgressUpdate,
     MuscleGroup, MuscleGroupModel, MuscleGroupCreate, MuscleGroupUpdate,
-    AppWorkout, AppWorkoutCreate, AppWorkoutUpdate, AppWorkoutExercise,
-    UserActivity, UserActivityRequest, WorkoutProgress
+    AppWorkout, AppWorkoutCreate, 
+    UserActivity, WorkoutProgress
 )
 from training.domain.utils import verify_token, get_current_user_id, is_admin_or_trainer, is_admin
 from config import settings
@@ -739,18 +736,34 @@ class TrainingRouter:
     async def get_app_workouts(self, request: Request) -> List[AppWorkout]:
         """Получить список тренировок пользователя"""
         user_id = await get_current_user_id(request)
-        return await self.training_service.get_app_workouts(user_id)
+        try:
+            user_id_int = int(user_id)
+            return await self.training_service.get_app_workouts(user_id_int)
+        except ValueError as e:
+            logger.error(f"Ошибка преобразования user_id в int: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Некорректный формат user_id: {str(e)}"
+            )
     
     async def get_app_workout(self, workout_uuid: UUID, request: Request) -> AppWorkout:
         """Получить тренировку пользователя по ID"""
         user_id = await get_current_user_id(request)
-        workout = await self.training_service.get_app_workout_by_id(workout_uuid, user_id)
-        if not workout:
+        try:
+            user_id_int = int(user_id)
+            workout = await self.training_service.get_app_workout_by_id(workout_uuid, user_id_int)
+            if not workout:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Тренировка с UUID {workout_uuid} не найдена"
+                )
+            return workout
+        except ValueError as e:
+            logger.error(f"Ошибка преобразования user_id в int: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Тренировка с UUID {workout_uuid} не найдена"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Некорректный формат user_id: {str(e)}"
             )
-        return workout
     
     async def create_app_workout(self, data: AppWorkoutCreate, request: Request) -> AppWorkout:
         """Создать новую тренировку пользователя"""
@@ -761,7 +774,15 @@ class TrainingRouter:
             )
         
         user_id = await get_current_user_id(request)
-        return await self.training_service.create_app_workout(data, user_id)
+        try:
+            user_id_int = int(user_id)
+            return await self.training_service.create_app_workout(data, user_id_int)
+        except ValueError as e:
+            logger.error(f"Ошибка преобразования user_id в int: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Некорректный формат user_id: {str(e)}"
+            )
     
     async def update_app_workout(self, workout_uuid: UUID, data: AppWorkoutCreate, request: Request) -> AppWorkout:
         """Обновить тренировку пользователя"""
@@ -772,13 +793,21 @@ class TrainingRouter:
             )
         
         user_id = await get_current_user_id(request)
-        workout = await self.training_service.update_app_workout(workout_uuid, data, user_id)
-        if not workout:
+        try:
+            user_id_int = int(user_id)
+            workout = await self.training_service.update_app_workout(workout_uuid, data, user_id_int)
+            if not workout:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Тренировка с UUID {workout_uuid} не найдена или недоступна"
+                )
+            return workout
+        except ValueError as e:
+            logger.error(f"Ошибка преобразования user_id в int: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Тренировка с UUID {workout_uuid} не найдена или недоступна"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Некорректный формат user_id: {str(e)}"
             )
-        return workout
     
     async def delete_app_workout(self, workout_uuid: UUID, request: Request) -> bool:
         """Удалить тренировку пользователя"""
@@ -788,13 +817,21 @@ class TrainingRouter:
                 detail="Только администратор может удалять тренировки"
             )
         user_id = await get_current_user_id(request)
-        success = await self.training_service.delete_app_workout(workout_uuid, user_id)
-        if not success:
+        try:
+            user_id_int = int(user_id)
+            success = await self.training_service.delete_app_workout(workout_uuid, user_id_int)
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Тренировка с UUID {workout_uuid} не найдена или недоступна"
+                )
+            return success
+        except ValueError as e:
+            logger.error(f"Ошибка преобразования user_id в int: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Тренировка с UUID {workout_uuid} не найдена или недоступна"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Некорректный формат user_id: {str(e)}"
             )
-        return success
 
     async def get_user_activity(self, request: Request, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[UserActivity]:
         """
@@ -869,17 +906,234 @@ class TrainingRouter:
         """
         Сохраняем прогресс тренировки пользователя и увеличиваем счетчик тренировок за день.
         ID пользователя определяется из токена авторизации.
+        
+        Новая версия поддерживает:
+        - UUID сессии тренировки
+        - Статус тренировки (start/ended)
+        - Время начала и окончания тренировки
+        - UUID упражнения (для отслеживания упражнений в рамках тренировки)
+        - UUID сессии упражнения (для отслеживания конкретного выполнения упражнения)
         """
         try:
             # Получаем ID пользователя из токена
             current_user_id = await get_current_user_id(request)
             
-            # Сохраняем прогресс тренировки, передавая UUID тренировки и время завершения
-            result = await self.activity_service.save_workout_progress(
-                user_id=int(current_user_id),
-                workout_uuid=workout_data.workout_uuid,
-                completed_at=workout_data.completed_at
-            )
+            # Печатаем исходные данные запроса
+            print(f"Получены данные:")
+            print(f"workout_uuid: {workout_data.workout_uuid}")
+            print(f"workout_session_uuid: {workout_data.workout_session_uuid}")
+            print(f"status: {workout_data.status}")
+            if workout_data.datetime_start:
+                print(f"datetime_start: {workout_data.datetime_start}")
+            if workout_data.datetime_end:
+                print(f"datetime_end: {workout_data.datetime_end}")
+            if workout_data.exercise_uuid:
+                print(f"exercise_uuid: {workout_data.exercise_uuid}")
+            if hasattr(workout_data, 'exercise_session_uuid') and workout_data.exercise_session_uuid:
+                print(f"exercise_session_uuid: {workout_data.exercise_session_uuid}")
+            
+            # Выводим статистику упражнения, если она доступна
+            if hasattr(workout_data, 'duration') and workout_data.duration is not None:
+                print(f"duration: {workout_data.duration}")
+            if hasattr(workout_data, 'user_duration') and workout_data.user_duration is not None:
+                print(f"user_duration: {workout_data.user_duration}")
+            if hasattr(workout_data, 'count') and workout_data.count is not None:
+                print(f"count: {workout_data.count}")
+            if hasattr(workout_data, 'user_count') and workout_data.user_count is not None:
+                print(f"user_count: {workout_data.user_count}")
+            
+            # Проверяем и конвертируем UUID
+            try:
+                # Проверка workout_uuid на пустоту и валидность
+                workout_uuid = None
+                if workout_data.workout_uuid:
+                    if isinstance(workout_data.workout_uuid, str):
+                        if workout_data.workout_uuid.strip():  # Если строка не пустая
+                            try:
+                                workout_uuid = UUID(workout_data.workout_uuid)
+                            except ValueError:
+                                print(f"Некорректный workout_uuid: {workout_data.workout_uuid}")
+                                workout_uuid = None
+                    else:
+                        workout_uuid = workout_data.workout_uuid
+                
+                # Проверка workout_session_uuid на валидность
+                workout_session_uuid = None
+                if workout_data.workout_session_uuid:
+                    if isinstance(workout_data.workout_session_uuid, str):
+                        try:
+                            workout_session_uuid = UUID(workout_data.workout_session_uuid)
+                        except ValueError:
+                            print(f"Некорректный workout_session_uuid: {workout_data.workout_session_uuid}")
+                            raise HTTPException(
+                                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Некорректный формат workout_session_uuid"
+                            )
+                    else:
+                        workout_session_uuid = workout_data.workout_session_uuid
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="workout_session_uuid обязателен"
+                    )
+                
+                # Проверка exercise_uuid на валидность, если он указан
+                exercise_uuid = None
+                if workout_data.exercise_uuid:
+                    if isinstance(workout_data.exercise_uuid, str):
+                        try:
+                            exercise_uuid = UUID(workout_data.exercise_uuid)
+                        except ValueError:
+                            print(f"Некорректный exercise_uuid: {workout_data.exercise_uuid}")
+                            exercise_uuid = None
+                    else:
+                        exercise_uuid = workout_data.exercise_uuid
+                
+                # Проверка exercise_session_uuid на валидность, если он указан
+                exercise_session_uuid = None
+                if hasattr(workout_data, 'exercise_session_uuid') and workout_data.exercise_session_uuid:
+                    if isinstance(workout_data.exercise_session_uuid, str):
+                        try:
+                            exercise_session_uuid = UUID(workout_data.exercise_session_uuid)
+                        except ValueError:
+                            print(f"Некорректный exercise_session_uuid: {workout_data.exercise_session_uuid}")
+                            # Не выбрасываем исключение, просто игнорируем неверный UUID
+                            exercise_session_uuid = None
+                    else:
+                        exercise_session_uuid = workout_data.exercise_session_uuid
+            except ValueError as e:
+                print(f"Ошибка при преобразовании UUID: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Некорректный формат UUID: {str(e)}"
+                )
+            
+            # Выводим информацию о преобразованных данных
+            print(f"Сохранение прогресса тренировки:")
+            print(f"- workout_uuid: {workout_uuid}")
+            print(f"- workout_session_uuid: {workout_session_uuid}")
+            print(f"- status: {workout_data.status}")
+            if exercise_uuid:
+                print(f"- exercise_uuid: {exercise_uuid}")
+            if exercise_session_uuid:
+                print(f"- exercise_session_uuid: {exercise_session_uuid}")
+            
+            if workout_data.datetime_start:
+                print(f"- datetime_start: {workout_data.datetime_start}")
+            if workout_data.datetime_end:
+                print(f"- datetime_end: {workout_data.datetime_end}")
+            
+            # Определяем, работаем ли мы с упражнением или с тренировкой
+            if exercise_uuid:
+                # Работаем с упражнением
+                if workout_data.status == "start":
+                    # Создаем новую запись с временем начала упражнения
+                    session_result = await self.activity_service.save_exercise_session(
+                        user_id=int(current_user_id),
+                        workout_session_uuid=workout_session_uuid,
+                        exercise_uuid=exercise_uuid,
+                        status="start",
+                        datetime_start=workout_data.datetime_start,
+                        datetime_end=None,  # При начале упражнения время окончания не устанавливается
+                        exercise_session_uuid=exercise_session_uuid
+                    )
+                    print(f"Создана запись о начале упражнения: {session_result}")
+                elif workout_data.status == "ended":
+                    # Получаем данные о статистике выполнения
+                    duration = None
+                    user_duration = None
+                    count = None
+                    user_count = None
+                    
+                    if hasattr(workout_data, 'duration') and workout_data.duration is not None:
+                        duration = workout_data.duration
+                    if hasattr(workout_data, 'user_duration') and workout_data.user_duration is not None:
+                        user_duration = workout_data.user_duration
+                    if hasattr(workout_data, 'count') and workout_data.count is not None:
+                        count = workout_data.count
+                    if hasattr(workout_data, 'user_count') and workout_data.user_count is not None:
+                        user_count = workout_data.user_count
+                    
+                    # Обновляем существующую запись, добавляя время окончания упражнения и статистику
+                    session_result = await self.activity_service.save_exercise_session(
+                        user_id=int(current_user_id),
+                        workout_session_uuid=workout_session_uuid,
+                        exercise_uuid=exercise_uuid,
+                        status="ended",
+                        datetime_start=None,  # Не обновляем время начала
+                        datetime_end=workout_data.datetime_end,
+                        exercise_session_uuid=exercise_session_uuid,
+                        duration=duration,
+                        user_duration=user_duration,
+                        count=count,
+                        user_count=user_count
+                    )
+                    print(f"Обновлена запись о завершении упражнения: {session_result}")
+                else:
+                    # Неизвестный статус
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Неизвестный статус упражнения: {workout_data.status}"
+                    )
+            else:
+                # Работаем с тренировкой (старая логика)
+                # Сохраняем данные в таблицу user_workout_sessions
+                if workout_data.status == "start":
+                    # Создаем новую запись с временем начала тренировки
+                    session_result = await self.activity_service.save_workout_session(
+                        user_id=int(current_user_id),
+                        workout_session_uuid=workout_session_uuid,
+                        workout_uuid=workout_uuid,
+                        status="start",
+                        datetime_start=workout_data.datetime_start,
+                        datetime_stop=None  # При начале тренировки время окончания не устанавливается
+                    )
+                    print(f"Создана запись о начале тренировки: {session_result}")
+                elif workout_data.status == "ended":
+                    # Обновляем существующую запись, добавляя время окончания
+                    session_result = await self.activity_service.save_workout_session(
+                        user_id=int(current_user_id),
+                        workout_session_uuid=workout_session_uuid,
+                        workout_uuid=workout_uuid,
+                        status="ended",
+                        datetime_start=None,  # Не обновляем время начала
+                        datetime_stop=workout_data.datetime_end
+                    )
+                    print(f"Обновлена запись о завершении тренировки: {session_result}")
+                    
+                    # Инкрементируем счетчик тренировок только для статуса "ended"
+                    if workout_uuid:
+                        # Если тренировка завершена, увеличиваем счетчик тренировок за сегодня
+                        today = date.today()
+                        try:
+                            await self.activity_service.update_user_activity(
+                                user_id=int(current_user_id),
+                                record_date=today,
+                                workout_count=1,
+                                increment=True,
+                                last_workout_uuid=workout_uuid
+                            )
+                            print(f"Увеличен счетчик тренировок для пользователя {current_user_id} за {today}")
+                        except Exception as e:
+                            print(f"Ошибка при обновлении активности: {str(e)}")
+                else:
+                    # Неизвестный статус
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Неизвестный статус тренировки: {workout_data.status}"
+                    )
+            
+            # Возвращаем результат
+            result = {
+                "success": True, 
+                "message": f"Прогресс {'упражнения' if exercise_uuid else 'тренировки'}: {workout_data.status}",
+                "workout_uuid": str(workout_uuid) if workout_uuid else None,
+                "workout_session_uuid": str(workout_session_uuid),
+                "exercise_uuid": str(exercise_uuid) if exercise_uuid else None,
+                "exercise_session_uuid": str(exercise_session_uuid) if exercise_session_uuid else None,
+                "status": workout_data.status,
+                "user_id": str(current_user_id),
+            }
             
             return result
             
@@ -891,6 +1145,7 @@ class TrainingRouter:
             )
         except Exception as e:
             # Другие ошибки
+            print(f"Ошибка при сохранении прогресса тренировки: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при сохранении прогресса тренировки: {str(e)}"

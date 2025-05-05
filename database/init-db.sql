@@ -276,6 +276,72 @@ SELECT add_column_if_not_exists('user_weights', 'weight', 'DECIMAL(5,2) NOT NULL
 -- Проверка лишних столбцов в таблице user_weights
 SELECT check_extra_columns('user_weights', ARRAY['user_id', 'record_date', 'weight']);
 
+-- Таблица сессий тренировок пользователей
+CREATE TABLE IF NOT EXISTS user_workout_sessions (
+    workout_session_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id INT NOT NULL,
+    workout_uuid UUID NOT NULL,
+    datetime_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    datetime_stop TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(20) NOT NULL DEFAULT 'in_process',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Проверка и добавление недостающих столбцов в таблицу user_workout_sessions
+SELECT add_column_if_not_exists('user_workout_sessions', 'workout_session_uuid', 'UUID PRIMARY KEY', 'gen_random_uuid()');
+SELECT add_column_if_not_exists('user_workout_sessions', 'user_id', 'INT NOT NULL');
+SELECT add_column_if_not_exists('user_workout_sessions', 'workout_uuid', 'UUID NOT NULL');
+SELECT add_column_if_not_exists('user_workout_sessions', 'datetime_start', 'TIMESTAMP WITH TIME ZONE NOT NULL');
+SELECT add_column_if_not_exists('user_workout_sessions', 'datetime_stop', 'TIMESTAMP WITH TIME ZONE');
+SELECT add_column_if_not_exists('user_workout_sessions', 'status', 'VARCHAR(20) NOT NULL', '''in_process''');
+SELECT add_column_if_not_exists('user_workout_sessions', 'created_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP');
+SELECT add_column_if_not_exists('user_workout_sessions', 'updated_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP');
+
+-- Проверка лишних столбцов в таблице user_workout_sessions
+SELECT check_extra_columns('user_workout_sessions', ARRAY['workout_session_uuid', 'user_id', 'workout_uuid', 'datetime_start', 'datetime_stop', 'status', 'created_at', 'updated_at']);
+
+-- Таблица упражнений в рамках сессии тренировки
+CREATE TABLE IF NOT EXISTS user_exercise_sessions (
+    exercise_session_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workout_session_uuid UUID NOT NULL REFERENCES user_workout_sessions(workout_session_uuid) ON DELETE CASCADE,
+    user_id INT NOT NULL,
+    exercise_uuid UUID NOT NULL,
+    datetime_start TIMESTAMP WITH TIME ZONE,
+    datetime_end TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(20) NOT NULL DEFAULT 'in_process',
+    duration INTEGER,
+    user_duration INTEGER,
+    count INTEGER,
+    user_count INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Проверка и добавление недостающих столбцов в таблицу user_exercise_sessions
+SELECT add_column_if_not_exists('user_exercise_sessions', 'exercise_session_uuid', 'UUID PRIMARY KEY', 'gen_random_uuid()');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'workout_session_uuid', 'UUID NOT NULL REFERENCES user_workout_sessions(workout_session_uuid) ON DELETE CASCADE');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'user_id', 'INT NOT NULL');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'exercise_uuid', 'UUID NOT NULL');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'datetime_start', 'TIMESTAMP WITH TIME ZONE');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'datetime_end', 'TIMESTAMP WITH TIME ZONE');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'status', 'VARCHAR(20) NOT NULL', '''in_process''');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'duration', 'INTEGER');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'user_duration', 'INTEGER');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'count', 'INTEGER');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'user_count', 'INTEGER');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'created_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP');
+SELECT add_column_if_not_exists('user_exercise_sessions', 'updated_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP');
+
+-- Проверка лишних столбцов в таблице user_exercise_sessions
+SELECT check_extra_columns('user_exercise_sessions', ARRAY['exercise_session_uuid', 'workout_session_uuid', 'user_id', 'exercise_uuid', 'datetime_start', 'datetime_end', 'status', 'duration', 'user_duration', 'count', 'user_count', 'created_at', 'updated_at']);
+
+-- Комментарии к полям статистики упражнений для документации схемы
+COMMENT ON COLUMN user_exercise_sessions.duration IS 'Заданная длительность упражнения в секундах';
+COMMENT ON COLUMN user_exercise_sessions.user_duration IS 'Фактически выполненная длительность упражнения в секундах';
+COMMENT ON COLUMN user_exercise_sessions.count IS 'Заданное количество повторений';
+COMMENT ON COLUMN user_exercise_sessions.user_count IS 'Фактически выполненное количество повторений';
+
 -- Создание индексов
 CREATE INDEX IF NOT EXISTS idx_usersemail_ ON users(email);
 CREATE INDEX IF NOT EXISTS idx_verification_codes_user_id ON verification_codes(user_id);
@@ -288,4 +354,11 @@ CREATE INDEX IF NOT EXISTS idx_blacklisted_tokens_expires_at ON blacklisted_toke
 CREATE INDEX IF NOT EXISTS idx_user_activities_user_id ON user_activities(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_activities_record_date ON user_activities(record_date);
 CREATE INDEX IF NOT EXISTS idx_user_weights_user_id ON user_weights(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_weights_record_date ON user_weights(record_date); 
+CREATE INDEX IF NOT EXISTS idx_user_weights_record_date ON user_weights(record_date);
+CREATE INDEX IF NOT EXISTS idx_user_workout_sessions_user_id ON user_workout_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_workout_sessions_workout_uuid ON user_workout_sessions(workout_uuid);
+CREATE INDEX IF NOT EXISTS idx_user_workout_sessions_status ON user_workout_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_user_exercise_sessions_workout_session_uuid ON user_exercise_sessions(workout_session_uuid);
+CREATE INDEX IF NOT EXISTS idx_user_exercise_sessions_user_id ON user_exercise_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_exercise_sessions_exercise_uuid ON user_exercise_sessions(exercise_uuid);
+CREATE INDEX IF NOT EXISTS idx_user_exercise_sessions_status ON user_exercise_sessions(status); 

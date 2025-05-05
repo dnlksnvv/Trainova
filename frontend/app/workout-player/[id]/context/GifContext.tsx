@@ -25,6 +25,7 @@ interface GifContextType {
   loadGif: (url: string) => Promise<void>;
   isGifLoading: (url: string) => boolean;
   hasGifError: (url: string) => boolean;
+  clearGifCache: (url: string) => void;
 }
 
 const GifContext = createContext<GifContextType | null>(null);
@@ -89,7 +90,7 @@ export const GifProvider: React.FC<{children: ReactNode}> = ({ children }) => {
       
       // Обрабатываем GIF
       const gif = parseGIF(buffer);
-      const decompressedFrames = decompressFrames(gif, 0);
+      const decompressedFrames = decompressFrames(gif, true);
       
       if (decompressedFrames.length === 0) {
         throw new Error('GIF не содержит кадров');
@@ -259,11 +260,25 @@ export const GifProvider: React.FC<{children: ReactNode}> = ({ children }) => {
     });
   };
   
+  // Очистка кэша для конкретного URL
+  const clearGifCache = useCallback((url: string) => {
+    // Проверяем, существует ли URL в кэше
+    if (gifCache[url]) {
+      console.log(`[GifContext] Очищаем кэш для URL: ${url}`);
+      
+      // Создаем новый объект кэша без указанного URL
+      const newCache = { ...gifCache };
+      delete newCache[url];
+      setGifCache(newCache);
+    }
+  }, [gifCache]);
+  
   const value = {
     getGifData,
     loadGif,
     isGifLoading,
-    hasGifError
+    hasGifError,
+    clearGifCache
   };
   
   return (
