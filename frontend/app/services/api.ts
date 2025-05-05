@@ -419,6 +419,8 @@ export interface AppWorkoutDto {
   last_exercise_status?: string;
   // Общее время тренировки
   total_workout_time?: number;
+  // Флаг видимости тренировки для других пользователей
+  is_visible?: boolean;
 }
 
 // API для работы с пользовательскими тренировками

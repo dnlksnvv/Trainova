@@ -206,7 +206,8 @@ CREATE TABLE IF NOT EXISTS app_workouts (
     name VARCHAR(25) NOT NULL,
     description VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_visible BOOLEAN DEFAULT FALSE
 );
 
 -- Проверка и добавление недостающих столбцов в таблицу app_workouts
@@ -215,9 +216,10 @@ SELECT add_column_if_not_exists('app_workouts', 'name', 'VARCHAR(25) NOT NULL');
 SELECT add_column_if_not_exists('app_workouts', 'description', 'VARCHAR(255)');
 SELECT add_column_if_not_exists('app_workouts', 'created_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP');
 SELECT add_column_if_not_exists('app_workouts', 'updated_at', 'TIMESTAMP', 'CURRENT_TIMESTAMP');
+SELECT add_column_if_not_exists('app_workouts', 'is_visible', 'BOOLEAN', 'FALSE');
 
 -- Проверка лишних столбцов в таблице app_workouts
-SELECT check_extra_columns('app_workouts', ARRAY['app_workout_uuid', 'name', 'description', 'created_at', 'updated_at']);
+SELECT check_extra_columns('app_workouts', ARRAY['app_workout_uuid', 'name', 'description', 'created_at', 'updated_at', 'is_visible']);
 
 -- Таблица упражнений в тренировке
 CREATE TABLE IF NOT EXISTS app_workout_exercises (

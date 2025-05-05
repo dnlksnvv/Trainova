@@ -81,6 +81,7 @@ interface Training {
   description?: string;
   exercises: TrainingExercise[];
   isPublic?: boolean;
+  is_visible?: boolean;
 }
 
 interface TrainingSettingsClientProps {
@@ -326,6 +327,7 @@ export default function TrainingSettingsClient({ id }: TrainingSettingsClientPro
               title: workoutData.name || "Тренировка без названия",
               description: workoutData.description || "",
               isPublic: false, // В текущей версии API это поле может отсутствовать
+              is_visible: workoutData.is_visible || false,
               exercises: transformedExercises
             };
             
@@ -507,7 +509,7 @@ export default function TrainingSettingsClient({ id }: TrainingSettingsClientPro
       setLoading(true);
       
       // Формируем данные для отправки на бэкенд в новом формате
-      const workoutData: AppWorkoutDto = {
+      const workoutData = {
         name: training.title,
         description: training.description || "",
         exercises: training.exercises.map(ex => ({
@@ -515,18 +517,19 @@ export default function TrainingSettingsClient({ id }: TrainingSettingsClientPro
           exercise_id: ex.exercise.id.toString(),
           count: ex.repetitions || undefined,
           duration: ex.duration || undefined
-        }))
+        })),
+        is_visible: training.is_visible || false // Передаем значение флага видимости
       };
       
       let savedWorkout;
       
       if (isNewTraining) {
         // Создание новой тренировки
-        savedWorkout = await appWorkoutsApi.createAppWorkout(workoutData);
+        savedWorkout = await appWorkoutsApi.createAppWorkout(workoutData as AppWorkoutDto);
         console.log('Создана новая тренировка:', savedWorkout);
       } else {
         // Обновление существующей тренировки
-        savedWorkout = await appWorkoutsApi.updateAppWorkout(String(id), workoutData);
+        savedWorkout = await appWorkoutsApi.updateAppWorkout(String(id), workoutData as AppWorkoutDto);
         console.log('Обновлена тренировка:', savedWorkout);
       }
     
@@ -573,7 +576,8 @@ export default function TrainingSettingsClient({ id }: TrainingSettingsClientPro
   const handlePublicToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     setTraining(prev => ({
       ...prev,
-      isPublic: event.target.checked
+      isPublic: event.target.checked, // Оставляем для совместимости с UI
+      is_visible: event.target.checked // Для API
     }));
   };
   
@@ -824,7 +828,7 @@ export default function TrainingSettingsClient({ id }: TrainingSettingsClientPro
             <FormControlLabel
               control={
                 <Switch
-                  checked={training.isPublic || false}
+                  checked={training.is_visible || training.isPublic || false}
                   onChange={handlePublicToggle}
                   sx={{
                     '& .MuiSwitch-switchBase.Mui-checked': {
