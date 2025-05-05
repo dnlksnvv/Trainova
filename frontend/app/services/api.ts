@@ -385,10 +385,19 @@ export const trainingsApi = {
 
 // Интерфейсы для пользовательских тренировок (app_workouts)
 export interface AppWorkoutExerciseDto {
-  id?: string; // Идентификатор упражнения в тренировке
+  id: string;
+  app_workout_uuid: string;
   exercise_id: string;
-  duration?: number; // Время в секундах
-  count?: number; // Количество повторений
+  duration: number | null;
+  count: number | null;
+  created_at: string;
+  updated_at: string;
+  exercise_name: string;
+  exercise_description: string;
+  gif_uuid: string;
+  muscle_group_name: string;
+  muscle_group_id?: number;
+  order: number;
 }
 
 export interface AppWorkoutDto {
@@ -398,6 +407,18 @@ export interface AppWorkoutDto {
   exercises: AppWorkoutExerciseDto[];
   created_at?: string;
   updated_at?: string;
+  // Новые поля для последней сессии тренировки
+  last_session_uuid?: string;
+  last_session_start?: string;
+  last_session_stop?: string;
+  last_session_status?: string;
+  // Новые поля для последнего упражнения
+  last_exercise_session_uuid?: string;
+  last_exercise_start?: string;
+  last_exercise_stop?: string;
+  last_exercise_status?: string;
+  // Общее время тренировки
+  total_workout_time?: number;
 }
 
 // API для работы с пользовательскими тренировками
@@ -566,8 +587,17 @@ export const userActivityApi = {
 
 // Интерфейс для отправки данных о прогрессе тренировки
 export interface WorkoutProgressDto {
-  workout_uuid: string;
-  completed_at: string;
+  workout_uuid?: string;
+  workout_session_uuid: string;
+  status: "start" | "ended";
+  datetime_start?: string; // UTC время старта тренировки
+  datetime_end?: string;   // UTC время окончания тренировки
+  exercise_uuid?: string;  // UUID упражнения (если отслеживается упражнение)
+  exercise_session_uuid?: string; // UUID сессии упражнения (для отслеживания конкретного выполнения)
+  duration?: number;      // Заданная длительность упражнения в секундах
+  user_duration?: number; // Фактически выполненная длительность упражнения в секундах
+  count?: number;         // Заданное количество повторений
+  user_count?: number;    // Фактически выполненное количество повторений
 }
 
 // API для работы с прогрессом тренировок

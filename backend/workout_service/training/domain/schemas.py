@@ -223,6 +223,7 @@ class AppWorkoutExercise(BaseModel):
     exercise_description: Optional[str] = None
     gif_uuid: Optional[Union[str, UUID]] = None
     muscle_group_name: Optional[str] = None
+    muscle_group_id: Optional[int] = None
     
     order: Optional[int] = None
 
@@ -244,6 +245,18 @@ class AppWorkout(BaseModel):
     exercises: Optional[List[AppWorkoutExercise]] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # Информация о последней сессии тренировки пользователя
+    last_session_uuid: Optional[Union[str, UUID]] = None
+    last_session_start: Optional[datetime] = None
+    last_session_stop: Optional[datetime] = None
+    last_session_status: Optional[str] = None
+    # Информация о последнем упражнении в тренировке
+    last_exercise_session_uuid: Optional[Union[str, UUID]] = None
+    last_exercise_start: Optional[datetime] = None
+    last_exercise_stop: Optional[datetime] = None
+    last_exercise_status: Optional[str] = None
+    # Суммарное время тренировки (в секундах)
+    total_workout_time: Optional[int] = None
     
     class Config:
         from_attributes = True
@@ -277,5 +290,14 @@ class UserActivityRequest(BaseModel):
 
 
 class WorkoutProgress(BaseModel):
-    workout_uuid: UUID
-    completed_at: datetime
+    workout_uuid: Optional[Union[str, UUID]] = None
+    workout_session_uuid: Union[str, UUID]
+    status: str  # "start" или "ended"
+    datetime_start: Optional[datetime] = None
+    datetime_end: Optional[datetime] = None
+    exercise_uuid: Optional[Union[str, UUID]] = None  # UUID упражнения (для отслеживания отдельных упражнений)
+    exercise_session_uuid: Optional[Union[str, UUID]] = None  # UUID сессии упражнения (для отслеживания конкретного выполнения)
+    duration: Optional[int] = None      # Заданная длительность упражнения в секундах
+    user_duration: Optional[int] = None # Фактически выполненная длительность упражнения в секундах
+    count: Optional[int] = None         # Заданное количество повторений
+    user_count: Optional[int] = None    # Фактически выполненное количество повторений
