@@ -61,6 +61,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+      
+      - name: 🔄 Pull latest code from GitHub on server
+        run: |
+          BRANCH=$(echo "${GITHUB_REF#refs/heads/}")
+            ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
+            "cd /home/${{ secrets.SSH_USER }}/Trainova && git fetch origin && git checkout $BRANCH && git pull origin $BRANCH"
 
       - name: 🛑 Docker Compose Down
         run: |
