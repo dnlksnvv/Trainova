@@ -78,7 +78,7 @@
 - [Неделя 21.04-28.04](/weekly_reports/Неделя%2021.04-28.04.pdf)
 - [PM отчёт 2 аттестация](/weekly_reports/PM%20отчёт%202%20аттестация.pdf)
 
-## Проверки работ
+## Проверки работ 1 аттестация
 
 [чек лист](/docs/оценивание.pdf)
 
@@ -89,3 +89,15 @@
 группа 3 команда 1 [GitHub](https://github.com/Shao-Lin/Music-dating) [чек лист](https://github.com/Shao-Lin/Music-dating/blob/main/documentation/ВГУ-ТП.%20Чеклист%201%20этап%203.1%20команда.pdf)
 
 группа 3 команда 4 [GitHub](https://github.com/uyrtryu/MindCard/tree/main) [чек лист](https://github.com/uyrtryu/MindCard/blob/main/Documentation/checklist1atta.pdf)
+
+## Проверки работ 2 аттестация
+
+[чек лист](/docs/оценивание2атта.pdf)
+
+Команды которые проверяли нас:
+
+группа 8 команда 4 [GitHub](https://github.com/nmasalkin/Project-work) [чек лист]()
+
+группа 3 команда 1 [GitHub](https://github.com/Shao-Lin/Music-dating) [чек лист](https://github.com/Shao-Lin/Music-dating/blob/dev/documentation/ВГУ-ТП.Чеклист%202%20этап%203.1%20команда.pdf)
+
+группа 3 команда 4 [GitHub](https://github.com/uyrtryu/MindCard/tree/main) [чек лист](https://github.com/uyrtryu/MindCard/blob/main/Documentation/checklist2atta.pdf)
