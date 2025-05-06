@@ -1,6 +1,6 @@
-# Trainova
+# [Trainova](https://trainova-app.duckdns.org/)
 
-Персональное приложение "Trainova" для домашних тренировок. Функционал: Тренировки заготовленные приложением, Платформа для обмена и продажи спортивных курсов.
+[Персональное приложение Trainova для домашних тренировок](https://trainova-app.duckdns.org/). Функционал: Тренировки заготовленные приложением, Платформа для обмена и продажи спортивных курсов.
 
 ## 👥 Наша команда
 
@@ -14,9 +14,12 @@
 ## 📋 Документация
 
 ### Презентационные материалы
-- [Презентация](/docs/user/Презентация.pdf)
-- [Видео-презентация](https://rutube.ru/video/private/cc8313c6f5b8fd51e4a147fbbf77e955/?p=6YHkhxMIlKlXTFrRJjWFIg)
+- [Презентация 1 аттестация](/docs/user/Презентация.pdf)
+- [Видео-презентация 1 аттестация](https://rutube.ru/video/private/cc8313c6f5b8fd51e4a147fbbf77e955/?p=6YHkhxMIlKlXTFrRJjWFIg)
 - [Брендбук](/docs/user/Брендбук.pdf)
+##
+- [Презентация 2 аттестация](/docs/user/Презентация%202%20аттестация.pdf) [pptx](/docs/user/Презентация%202%20аттестация.pptx)
+- [Видео-презентация 2 аттестация]()
 
 ### Бизнес-документация
 - [Техническое задание](/docs/user/Техническое%20задание%20Trainova.pdf) [docx](/docs/user/Техническое%20задание%20Trainova.docx)
@@ -24,16 +27,21 @@
 - [Финансовая модель](/docs/user/Финансовая%20модель.pdf) [docx](/docs/user/Финансовая%20модель.docx)
 - [SWOT-анализ](/docs/user/SWOT.pdf) [docx](/docs/user/SWOT.docx)
 
+### Тестовая-документация
+- [Тест дизайн](/docs/test/Тест%20дизайн.pdf) [docx](/docs/test/Тест%20дизайн.docx)
+- [Отчет тестирования функциональностей MVP](/docs/test/Отчет%20тестирования%20функциональностей%20MVP.pdf) [docx](/docs/test/Отчет%20тестирования%20функциональностей%20MVP.docx)
+
 ### Пользовательская документация
 - [Условия использования](/docs/user/terms.md)
 - [Политика конфиденциальности](/docs/user/privacy.md)
 
 ### API документация
-- [Trainova Auth Service](https://app.swaggerhub.com/apis-docs/trainova/trainova-auth_service/1.0.0) [pdf](/docs/api/auth/auth.pdf)
+- [Trainova Auth Service](https://app.swaggerhub.com/apis/trainova-93f/trainova-auth_service_api/1.0.0) [pdf](/docs/api/auth/Trainova%20Auth%20Service%20API.pdf)
+- [Trainova Workout Service](https://app.swaggerhub.com/apis/trainova-93f/trainova-workout_service_api/1.0.0) [pdf](/docs/api/workout/Trainova%20Workout%20Service%20API.pdf)
+##
 - [Neural Service](https://app.swaggerhub.com/apis-docs/trainova/trainova-neural_service/1.0.0) [pdf](/docs/api/neural/neural.pdf)
 - [Profile Management Service](https://app.swaggerhub.com/apis-docs/trainova/profile-management_service/1.0.0) [pdf](/docs/api/profile/profile.pdf)
 - [Comments Service](https://app.swaggerhub.com/apis-docs/trainova/trainova-comments_service/1.0.0) [pdf](/docs/api/comments/comments.pdf)
-- [Training Service](https://app.swaggerhub.com/apis-docs/trainova/trainova-training_service/1.0.0) [pdf](/docs/api/training/training.pdf)
 - [Courses Service](https://app.swaggerhub.com/apis-docs/trainova/trainova-courses_service/1.0.0#/) [pdf](/docs/api/courses/courses.pdf)
 
 ### Документация для разработчиков
@@ -41,6 +49,8 @@
 - [Соглашение о коммитах](https://www.conventionalcommits.org/ru/v1.0.0/)
 
 ## 🔗 Ресурсы проекта
+
+### [Ссылка на приложение Trainova](https://trainova-app.duckdns.org/)
 
 ### Проектирование и архитектура
 - [Микросервисная архитектура](https://miro.com/app/board/uXjVIcx8C5w=/)
@@ -62,6 +72,12 @@
   
 Пароль: Guest123987
 
+### Отчёты
+- [Неделя 7.04-14.04](/weekly_reports/неделя%207.04-14.04.pdf)
+- [Неделя 14.04-21.04](/weekly_reports/Неделя%2014.04-21.04.pdf)
+- [Неделя 21.04-28.04](/weekly_reports/Неделя%2021.04-28.04.pdf)
+- [PM отчёт 2 аттестация](/weekly_reports/PM%20отчёт%202%20аттестация.pdf)
+
 ## Проверки работ
 
 [чек лист](/docs/оценивание.pdf)
@@ -71,6 +87,5 @@
 группа 8 команда 4 [GitHub](https://github.com/nmasalkin/Project-work) [чек лист](https://github.com/nmasalkin/Project-work/blob/main/Чек-лист/Кросс-проверка.pdf)
 
 группа 3 команда 1 [GitHub](https://github.com/Shao-Lin/Music-dating) [чек лист](https://github.com/Shao-Lin/Music-dating/blob/main/documentation/ВГУ-ТП.%20Чеклист%201%20этап%203.1%20команда.pdf)
-
 
 группа 3 команда 4 [GitHub](https://github.com/uyrtryu/MindCard/tree/main) [чек лист](https://github.com/uyrtryu/MindCard/blob/main/Documentation/checklist1atta.pdf)
