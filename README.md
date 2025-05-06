@@ -70,7 +70,7 @@
 
 Логин: egormanukovsky@yandex.ru
   
-Пароль: Guest123987
+Пароль: Guest12398755
 
 ### Отчёты
 - [Неделя 7.04-14.04](/weekly_reports/неделя%207.04-14.04.pdf)
