@@ -96,7 +96,7 @@
 
 Команды которые проверяли нас:
 
-группа 8 команда 4 [GitHub](https://github.com/nmasalkin/Project-work) [чек лист]()
+группа 8 команда 4 [GitHub](https://github.com/nmasalkin/Project-work) [чек лист](https://github.com/nmasalkin/Project-work/blob/main/Чек-лист/Кросс-проверка2%20.pdf)
 
 группа 3 команда 1 [GitHub](https://github.com/Shao-Lin/Music-dating) [чек лист](https://github.com/Shao-Lin/Music-dating/blob/dev/documentation/ВГУ-ТП.Чеклист%202%20этап%203.1%20команда.pdf)
 
