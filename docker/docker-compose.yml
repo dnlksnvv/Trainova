@@ -1,0 +1,113 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: trainova_postgres
+    env_file: 
+      - ./.env
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_HOST_AUTH_METHOD=md5
+      - POSTGRES_INITDB_ARGS=--auth-host=md5
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    command: ["postgres", "-c", "listen_addresses=*", "-c", "log_statement=all"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+  auth_service:
+    build:
+      context: ../backend/auth_service
+      dockerfile: Dockerfile
+    container_name: trainova_auth_service
+    env_file:
+      - ./.env
+    ports:
+      - "8000:8000"
+    environment:
+      - CONFIG_FILE=/.env
+      - DB_HOST=postgres
+    volumes:
+      - ./.env:/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+        
+  workout_service:
+    build:
+      context: ../backend/workout_service
+      dockerfile: Dockerfile
+    container_name: trainova_workout_service
+    env_file:
+      - ./.env
+    ports:
+      - "8001:8001"
+    environment:
+      - CONFIG_FILE=/.env
+      - DB_HOST=postgres
+    volumes:
+      - ./.env:/.env
+      - exercises_content_data:/app/exercises_content
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    depends_on:
+      auth_service:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    env_file:
+      - ./.env
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        - AUTH_API_PREFIX=${AUTH_API_PREFIX}
+        - WORKOUT_API_PREFIX=${WORKOUT_API_PREFIX}
+        - API_URL=${API_URL}
+    container_name: trainova_frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      auth_service:
+        condition: service_started
+      workout_service:
+        condition: service_started
+
+  nginx:
+    image: nginx:latest
+    container_name: trainova_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../nginx/conf.d:/etc/nginx/conf.d
+      - /certs:/etc/letsencrypt
+      - /www:/var/www/html 
+    command: >
+      /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
+    depends_on:
+      - auth_service
+      - workout_service
+      - frontend
+
+volumes:
+  postgres_data:
+  exercises_content_data:
+  certbot_www:
+  certbot_conf:

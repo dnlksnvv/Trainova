@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --background: var(--mui-background-default);
+  --foreground: var(--mui-text-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--mui-background-default);
+    --foreground: var(--mui-text-primary);
+  }
+}
+
+html {
+  background-color: var(--background);
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--mui-font-family);
+  min-height: 100%;
+  margin: 0;
+}
