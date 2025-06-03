@@ -1,0 +1,1 @@
+# Domain модуль для course service 
