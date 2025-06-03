@@ -90,7 +90,8 @@ export default function FilterDialog({
           maxWidth: '500px',
           borderRadius: '16px',
           bgcolor: theme.palette.backgrounds?.paper
-        }
+        },
+        elevation: 0
       }}
     >
       <DialogTitle sx={{ 
@@ -133,8 +134,8 @@ export default function FilterDialog({
                   },
                   '&:hover': {
                     bgcolor: theme.palette.mode === 'dark' 
-                      ? 'rgba(255, 255, 255, 0.08)' 
-                      : 'rgba(0, 0, 0, 0.04)'
+                      ? `${theme.palette.textColors?.primary}14` 
+                      : `${theme.palette.textColors?.primary}0A`
                   }
                 }}
               >
@@ -161,8 +162,8 @@ export default function FilterDialog({
               pr: 1, 
               py: 1, 
               bgcolor: theme.palette.mode === 'dark' 
-                ? 'rgba(255, 255, 255, 0.03)' 
-                : 'rgba(0, 0, 0, 0.02)',
+                ? `${theme.palette.textColors?.primary}08` 
+                : `${theme.palette.textColors?.primary}05`,
               borderRadius: '8px',
               mb: 1
             }}>

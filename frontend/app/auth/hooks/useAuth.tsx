@@ -9,7 +9,7 @@ const ACCESS_TOKEN_COOKIE = 'access_token';
 const REFRESH_TOKEN_COOKIE = 'refresh_token';
 
 interface User {
-  id: string;
+  user_id: string;
   email: string;
   role_id: number;
   first_name?: string | null;
@@ -46,6 +46,10 @@ interface ResetPasswordData {
 // API URL из переменных окружения или по умолчанию
 const API_URL = process.env.API_URL;
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
+
+// Отладочный вывод
+console.log('API URL:', API_URL);
+console.log('AUTH PREFIX:', AUTH_API_PREFIX);
 
 // Создаем контекст
 const AuthContext = createContext<AuthContextType | null>(null);

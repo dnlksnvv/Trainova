@@ -70,10 +70,16 @@ export default function ExerciseImage({
           aspectRatio: '1/1'
         }}
       >
-        <Typography variant="body1" color="error">
-          Изображение упражнения не найдено
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <ErrorOutline color="warning" sx={{ fontSize: 40, mb: 1 }} />
+          <Typography variant="body1" align="center" sx={{ maxWidth: '80%' }}>
+            Изображение упражнения не найдено
           </Typography>
-        </Paper>
+          <Typography variant="body2" color="textSecondary" align="center" sx={{ mt: 1, maxWidth: '80%' }}>
+            {currentExercise.name}
+          </Typography>
+        </Box>
+      </Paper>
     );
   }
   

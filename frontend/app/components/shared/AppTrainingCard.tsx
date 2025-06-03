@@ -47,13 +47,14 @@ const pulseAnimation = keyframes`
 
 // Стилизованная карточка тренировки
 const StyledCard = styled(Card)(({ theme }) => ({
-  borderRadius: '16px',
-  boxShadow: 'none',
+  borderRadius: theme.borderRadius.large,
+  boxShadow: theme.customShadows.medium, 
   position: 'relative',
   overflow: 'hidden',
-  transition: 'transform 0.3s ease-in-out',
+  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
   '&:hover': {
-    transform: 'translateY(-5px)',
+    transform: 'scale(1.01)',
+    boxShadow: theme.customShadows.strong,
   },
 }));
 
@@ -77,12 +78,8 @@ export default function AppTrainingCard({ training }: AppTrainingCardProps) {
 
   // Определение фона в зависимости от статуса тренировки
   const backgroundStyle = {
-    backgroundColor: theme.palette.mode === 'dark' 
-      ? theme.palette.backgrounds?.paper || '#121212'
-      : theme.palette.backgrounds?.default || '#f5f5f5',
     // Добавляем легкую подсветку для незавершенных тренировок
-    border: isInProgress ? `1px solid ${theme.palette.info.main}` : 'none',
-    boxShadow: isInProgress ? `0 0 8px 1px ${theme.palette.info.main}30` : 'none'
+    border: isInProgress ? `1px solid ${theme.palette.info.main}` : 'none'
   };
 
   // Обработчик нажатия на кнопку настроек
@@ -187,10 +184,15 @@ export default function AppTrainingCard({ training }: AppTrainingCardProps) {
   return (
     <>
       <StyledCard 
+        elevation={0}
         onClick={onCardClick}
         sx={{ 
           ...backgroundStyle,
-          cursor: 'pointer'
+          cursor: 'pointer',
+          backgroundColor: theme.palette.backgrounds?.paper,
+          boxShadow: isInProgress 
+            ? theme.customShadows.colored(theme.palette.info.main) 
+            : theme.customShadows.medium
         }}
       >
         <CardContent>
@@ -207,7 +209,7 @@ export default function AppTrainingCard({ training }: AppTrainingCardProps) {
                   fontWeight: 'bold',
                   color: isInProgress ? theme.palette.info.main : theme.palette.textColors?.primary,
                   fontSize: '1.125rem',
-                  maxWidth: 'calc(100% - 100px)', // Увеличиваем отступ, чтобы не перекрывало свечение
+                  maxWidth: 'calc(100% - 100px)', 
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -302,7 +304,7 @@ export default function AppTrainingCard({ training }: AppTrainingCardProps) {
                       bgcolor: 'rgba(33, 150, 243, 0.1)',
                       px: 1,
                       py: 0.25,
-                      borderRadius: '4px',
+                      borderRadius: theme.borderRadius.small,
                       fontSize: '0.75rem',
                       fontWeight: 'medium'
                     }}
@@ -317,7 +319,7 @@ export default function AppTrainingCard({ training }: AppTrainingCardProps) {
                       bgcolor: 'rgba(33, 150, 243, 0.1)',
                       px: 1,
                       py: 0.25,
-                      borderRadius: '4px',
+                      borderRadius: theme.borderRadius.small,
                       fontSize: '0.75rem',
                       fontWeight: 'medium'
                     }}
