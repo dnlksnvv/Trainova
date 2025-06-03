@@ -1,0 +1,1 @@
+# Infrastructure модуль для course service 

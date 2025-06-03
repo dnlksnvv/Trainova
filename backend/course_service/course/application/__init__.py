@@ -1,0 +1,1 @@
+# Application модуль для course service 
