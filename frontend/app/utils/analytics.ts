@@ -272,3 +272,5 @@ export const YMAnalytics = {
 };
 
 export default YMAnalytics; 
+
+// Успешно протестировано на 03.06.2025 - Работоспособно
