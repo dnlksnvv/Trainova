@@ -10,7 +10,7 @@ import MainLayout from "@/app/components/layouts/MainLayout";
 import MyChart from "@/app/components/shared/MyChart";
 import PurchasedCourseCard, {
   PurchasedCourseData,
-} from "@/app/components/shared/PurchasedCourseCard";
+} from "@/app/courses/components/PurchasedCourseCard";
 import AppTrainingCard, { AppTrainingData } from "@/app/components/shared/AppTrainingCard";
 import { appWorkoutsApi, AppWorkoutDto, AppWorkoutExerciseDto } from "@/app/services/api";
 
@@ -103,13 +103,12 @@ export default function HomePage() {
     };
   };
 
-  // Пример данных для "Купленные  курсы"
-  // Вместо жёстких #FF8080 / #81c784 / #64b5f6 берём из theme.palette.muscleColors
+  // Mock data for purchased courses
   const purchasedCourses: PurchasedCourseData[] = [
     {
       title: "Недельный интенсив «Большая грудь»",
       subscriptionUntil: "03.05.2025",
-      description: "Курс направлен на памп груди...",
+      description: "Курс направлен на памп груди. За неделю мы наберем 1кг мышечной массы. Адаптируем тело к высоким нагрузкам и поднимаем силу духа.",
       duration: "5 часов",
       muscleUsage: [
         {
@@ -132,33 +131,40 @@ export default function HomePage() {
       completedLessons: 9,
       totalLessons: 13,
       trainerName: "Виктор Чак-Чак",
-      trainerRating: 0.5, // 0..1 => 2.5 звезды
-      courseRating: 0.3,  // 0..1 => 1.5 звезды
+      trainerRating: 0.9, // 4.5 звезды
+      courseRating: 0.8,  // 4 звезды
+      subscribersCount: 1256
     },
     {
       title: "Недельный интенсив «Большая нога»",
       subscriptionUntil: "03.05.2025",
-      description: "Курс направлен на памп левой ноги...",
-      duration: "1 час",
+      description: "Курс направлен на памп груди. За неделю мы наберем 1кг мышечной массы. Адаптируем тело к высоким нагрузкам и поднимаем силу духа.",
+      duration: "5 часов",
       muscleUsage: [
+        {
+          name: "Руки",
+          color: theme.palette.muscleColors?.pink ?? "#FF8080",
+          percent: 20,
+        },
         {
           name: "Ноги",
           color: theme.palette.muscleColors?.green ?? "#81c784",
-          percent: 80,
+          percent: 50,
         },
         {
-          name: "Пресс",
+          name: "Грудь",
           color: theme.palette.muscleColors?.blue ?? "#64b5f6",
-          percent: 5,
+          percent: 30,
         },
       ],
-      lastWorkout: "Сегодня",
-      completedLessons: 2,
-      totalLessons: 5,
-      trainerName: "Тамара Потеха",
-      trainerRating: 1, // 1 => 5 звёзд
-      courseRating: 0.6,
-    },
+      lastWorkout: "Вчера",
+      completedLessons: 4,
+      totalLessons: 10,
+      trainerName: "Виктор Чак-Чак",
+      trainerRating: 0.9, // 4.5 звезды
+      courseRating: 0.8,  // 4 звезды
+      subscribersCount: 1543
+    }
   ];
 
   // Загрузка последних тренировок при монтировании компонента

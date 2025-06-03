@@ -22,6 +22,7 @@ import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
 import PersonIcon from "@mui/icons-material/Person";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/auth/hooks/useAuth";
+import AnimatedLayout from "../shared/AnimatedLayout";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const [navValue, setNavValue] = React.useState("home");
@@ -33,10 +34,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const { user, loading, logout } = useAuth();
   const theme = useTheme();
 
-  // Устанавливаем начальное значение после монтирования
-  useEffect(() => {
-    // Устанавливаем текущий путь
-    const pathname = window.location.pathname;
+  // Обновляем активную вкладку при изменении пути
+  const updateActiveTab = (pathname: string) => {
     setCurrentPath(pathname);
     
     // Устанавливаем активный таб на основе текущего пути
@@ -46,12 +45,34 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       setNavValue("profile");
     } else if (pathname === "/trainings") {
       setNavValue("blockA");
+    } else if (pathname === "/courses" || pathname.startsWith("/courses/")) {
+      setNavValue("blockB");
     }
+  };
+
+  // Устанавливаем начальное значение после монтирования
+  useEffect(() => {
+    // Устанавливаем текущий путь
+    const pathname = window.location.pathname;
+    updateActiveTab(pathname);
     
     // Устанавливаем pageLoaded в true после первого рендера
     setTimeout(() => {
       setPageLoaded(true);
     }, 100);
+
+    // Слушаем изменение пути для обновления активной вкладки
+    const handleRouteChange = () => {
+      const newPathname = window.location.pathname;
+      updateActiveTab(newPathname);
+    };
+
+    // Добавляем обработчик для события popstate (когда пользователь использует кнопку назад/вперед)
+    window.addEventListener('popstate', handleRouteChange);
+
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+    };
   }, []);
 
   // Если пользователь не авторизован и не в процессе загрузки, 
@@ -63,11 +84,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }, [loading, user, router]);
 
   const handleNavChange = (_event: React.SyntheticEvent, newValue: string) => {
-    // Если уже находимся на этой странице, не делаем ничего
-    if (navValue === newValue) {
-      return;
-    }
-    
     setNavValue(newValue);
     setPageLoaded(false);
     
@@ -79,21 +95,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       targetPath = "/profile";
     } else if (newValue === "blockA") {
       targetPath = "/trainings";
+    } else if (newValue === "blockB") {
+      targetPath = "/courses";
     }
     
-    // Проверяем, изменился ли путь
-    if (targetPath !== currentPath) {
-      setCurrentPath(targetPath);
-      router.push(targetPath);
-      
-      // После навигации устанавливаем задержку для имитации завершения загрузки
-      setTimeout(() => {
-        setPageLoaded(true);
-      }, 300);
-    } else {
-      // Если путь тот же, просто обновляем состояние
+    // Всегда выполняем переход, даже если мы уже на этой странице
+    setCurrentPath(targetPath);
+    router.push(targetPath);
+    
+    // После навигации устанавливаем задержку для имитации завершения загрузки
+    setTimeout(() => {
       setPageLoaded(true);
-    }
+    }, 300);
   };
 
   const handleLogout = async () => {
@@ -138,7 +151,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         bgcolor: theme.palette.backgrounds?.default, 
       }}
     >
-      {/* Основная область (контент) */}
+      {/* Основная область (контент) с анимацией появления */}
       <Container
         maxWidth={false}
         sx={{
@@ -149,7 +162,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           margin: "0 auto",
         }}
       >
-        {children}
+        <AnimatedLayout>
+          {children}
+        </AnimatedLayout>
       </Container>
 
       {/* Нижняя навигация */}

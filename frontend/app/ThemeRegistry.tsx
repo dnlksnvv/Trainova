@@ -69,12 +69,22 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
     },
     html: {
       backgroundColor: theme.palette.backgrounds?.default,
+      height: '100%',
     },
     body: {
       backgroundColor: theme.palette.backgrounds?.default,
       color: theme.palette.textColors?.primary,
       fontFamily: theme.typography.fontFamily,
       margin: 0,
+      minHeight: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    '#__next': {
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '100%',
+      flex: 1,
     }
   };
 

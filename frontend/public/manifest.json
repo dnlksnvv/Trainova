@@ -4,8 +4,8 @@
   "description": "Приложение для тренировок",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#2b2b2b",
-  "theme_color": "#2b2b2b",
+  "background_color": "#2a2a2a",
+  "theme_color": "#2a2a2a",
   "orientation": "portrait-primary",
   "icons": [
     {

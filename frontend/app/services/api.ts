@@ -3,6 +3,10 @@
 // Базовый URL тренировочного сервиса из переменных окружения или по умолчанию
 export const API_URL = process.env.API_URL;
 export const WORKOUT_API_PREFIX = process.env.WORKOUT_API_PREFIX;
+export const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
+export const PROFILE_API_PREFIX = process.env.PROFILE_API_PREFIX;
+export const COURSE_API_PREFIX = process.env.COURSE_API_PREFIX || '/api/course';
+export const MOTIVATION_API_PREFIX = process.env.MOTIVATION_API_PREFIX || '/api/motivation';
 
 
 // Функция для получения токена из хранилища
@@ -103,6 +107,322 @@ export interface ExerciseUpdate {
   muscle_group_id?: number | null;
   gif_uuid?: string | null; // Опционально при обновлении, null для удаления
 }
+
+// =================== PROFILE API INTERFACES ===================
+
+// Интерфейс профиля пользователя
+export interface ProfileResponse {
+  user_id: string;
+  email: string;
+  role_id: number;
+  is_verified: boolean;
+  first_name: string;
+  last_name: string;
+  description: string | null;
+  avatar_url: string | null;
+}
+
+// Интерфейс публичного профиля пользователя (только общедоступные данные)
+export interface PublicProfileResponse {
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  description: string | null;
+  avatar_url: string | null;
+}
+
+// Интерфейс обновления профиля
+export interface ProfileUpdateRequest {
+  first_name?: string;
+  last_name?: string;
+  description?: string;
+}
+
+// Интерфейс изменения имени
+export interface ChangeNameRequest {
+  first_name?: string;
+  last_name?: string;
+}
+
+// Интерфейс изменения аватара
+export interface ChangeAvatarRequest {
+  avatar_url: string;
+}
+
+// Интерфейс изменения описания
+export interface ChangeDescriptionRequest {
+  description?: string;
+}
+
+// Интерфейс информации о подписке
+export interface SubscriptionInfo {
+  subscription_uuid: string;
+  course_id: string;
+  course_name: string;
+  start_date: string;
+  end_date?: string | null;
+  status: string;
+  price: number;
+  recurring: boolean;
+  days_left?: number | null;
+}
+
+// Интерфейс списка подписок
+export interface SubscriptionsResponse {
+  subscriptions: SubscriptionInfo[];
+}
+
+// Интерфейс информации о платеже
+export interface PaymentInfo {
+  payment_id: string;
+  course_id: string;
+  course_name: string;
+  payment_date: string;
+  amount: number;
+  status: string;
+  payment_method: string;
+}
+
+// Интерфейс истории платежей
+export interface PaymentsResponse {
+  payments: PaymentInfo[];
+}
+
+// Интерфейс метода оплаты
+export interface PaymentMethodResponse {
+  method: string;
+  payment_method_id: string;
+  is_saved: boolean;
+  is_default: boolean;
+  is_verified: boolean;
+  title?: string;
+  card_last4?: string;
+  card_type?: string;
+  card_expiry_month?: string;
+  card_expiry_year?: string;
+  issuer_country?: string;
+}
+
+// Интерфейс изменения метода оплаты
+export interface ChangePaymentMethodRequest {
+  method: string;
+  details: Record<string, any>;
+}
+
+// Интерфейс доступных методов оплаты
+export interface AvailablePaymentMethodsResponse {
+  methods: string[];
+}
+
+// Интерфейс ответа с сообщением
+export interface MessageResponse {
+  message: string;
+}
+
+// Интерфейс ответа с ошибкой
+export interface ErrorResponse {
+  detail: string;
+}
+
+// =================== COURSE API INTERFACES ===================
+
+// Типы для курсов
+export interface CourseCreate {
+  name: string;
+  description?: string;
+  price?: number;
+  duration?: number; // Длительность в секундах
+  exercise_count: number;
+  is_published: boolean;
+}
+
+export interface CourseUpdate {
+  name?: string;
+  description?: string;
+  price?: number;
+  duration?: number; // Длительность в секундах
+  exercise_count?: number;
+  is_published?: boolean;
+}
+
+// Интерфейс для группы мышц с процентом нагрузки
+export interface MuscleGroupWithPercentage {
+  id: number;
+  name: string;
+  description?: string;
+  percentage: number;
+}
+
+export interface CourseResponse {
+  course_uuid: string;
+  user_id: number;
+  name: string;
+  description?: string;
+  price?: number;
+  duration?: number;
+  exercise_count: number;
+  rating: number;
+  subscribers_count: number;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+  has_subscription?: boolean;
+  subscription_end_date?: string | null;
+  muscle_groups?: MuscleGroupWithPercentage[];
+}
+
+export interface CourseFilters {
+  user_ids?: number[];
+  current_subscribe?: boolean;
+  include_unpublished?: boolean;
+}
+
+export interface CourseFilterRequest {
+  filters?: CourseFilters;
+}
+
+// API для работы с курсами
+export const coursesApi = {
+  // Создание курса
+  async create(course: CourseCreate): Promise<CourseResponse> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(course)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ошибка создания курса: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // Получение курсов с фильтрацией (новый метод)
+  async getCoursesWithFilters(filters?: CourseFilterRequest): Promise<CourseResponse[]> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/courses`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(filters || {})
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ошибка получения курсов: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // Получение курса по UUID
+  async getById(id: string): Promise<CourseResponse> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/${id}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
+      const error = new Error(errorData.detail || `Ошибка получения курса: ${response.statusText}`) as any;
+      error.response = {
+        status: response.status,
+        data: errorData
+      };
+      throw error;
+    }
+
+    return response.json();
+  },
+
+  // Получение курсов пользователя (старый метод, оставляем для совместимости)
+  async getUserCourses(userId: number, publishedOnly: boolean = false): Promise<CourseResponse[]> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/user/${userId}?published_only=${publishedOnly}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ошибка получения курсов пользователя: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // Обновление курса
+  async update(id: string, course: CourseUpdate): Promise<CourseResponse> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(course)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ошибка обновления курса: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // Удаление курса
+  async delete(id: string): Promise<void> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ошибка удаления курса: ${response.statusText}`);
+    }
+  },
+
+  // Проверка здоровья сервиса курсов
+  healthCheck: async (): Promise<{ service: string; status: string; message: string }> => {
+    return fetchWithAuth(`${API_URL}${COURSE_API_PREFIX}/health`);
+  },
+
+  // Получение тренировок курса
+  async getCourseWorkouts(courseId: string): Promise<CourseWorkoutResponse[]> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/courses/${courseId}/workouts`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Неизвестная ошибка' }));
+      const error = new Error(errorData.detail || `Ошибка получения тренировок курса: ${response.statusText}`) as any;
+      error.response = {
+        status: response.status,
+        data: errorData
+      };
+      throw error;
+    }
+
+    return response.json();
+  }
+};
 
 // API для работы с группами мышц
 export const muscleGroupsApi = {
@@ -627,4 +947,679 @@ export const workoutProgressApi = {
       body: JSON.stringify(data),
     });
   },
+};
+
+// =================== PROFILE API ===================
+
+// Интерфейс запроса на подписку на курс
+export interface CourseSubscriptionRequest {
+  course_uuid: string;
+}
+
+// Интерфейс ответа на запрос подписки на курс
+export interface CourseSubscriptionResponse {
+  success: boolean;
+  message: string;
+  code?: string;
+  subscription_id?: string;
+}
+
+// API для работы с профилем пользователя
+export const profileApi = {
+  // Получение профиля текущего пользователя
+  getMyProfile: async (): Promise<ProfileResponse> => {
+    return fetchWithAuth<ProfileResponse>(`${API_URL}${PROFILE_API_PREFIX}/me`);
+  },
+
+  // Получение публичного профиля пользователя по ID
+  getUserProfile: async (userId: string): Promise<PublicProfileResponse> => {
+    return fetchWithAuth<PublicProfileResponse>(`${API_URL}${PROFILE_API_PREFIX}/user/${userId}`);
+  },
+
+  // Обновление профиля
+  updateProfile: async (data: ProfileUpdateRequest): Promise<ProfileResponse> => {
+    return fetchWithAuth<ProfileResponse>(`${API_URL}${PROFILE_API_PREFIX}/update`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Получение списка подписок пользователя
+  getSubscriptions: async (): Promise<SubscriptionsResponse> => {
+    return fetchWithAuth<SubscriptionsResponse>(`${API_URL}${PROFILE_API_PREFIX}/subscriptions`);
+  },
+
+  // Получение истории платежей
+  getPayments: async (): Promise<PaymentsResponse> => {
+    return fetchWithAuth<PaymentsResponse>(`${API_URL}${PROFILE_API_PREFIX}/payments`);
+  },
+
+  // Изменение имени профиля
+  changeName: async (data: ChangeNameRequest): Promise<MessageResponse> => {
+    return fetchWithAuth<MessageResponse>(`${API_URL}${PROFILE_API_PREFIX}/name-change`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Изменение аватара профиля (URL)
+  changeAvatar: async (data: ChangeAvatarRequest): Promise<MessageResponse> => {
+    return fetchWithAuth<MessageResponse>(`${API_URL}${PROFILE_API_PREFIX}/avatar-change`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Изменение описания профиля
+  changeDescription: async (data: ChangeDescriptionRequest): Promise<MessageResponse> => {
+    return fetchWithAuth<MessageResponse>(`${API_URL}${PROFILE_API_PREFIX}/description-change`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Загрузка файла аватара
+  uploadAvatar: async (file: File): Promise<{ avatar_url: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = getAccessToken();
+    const headers = new Headers();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(`${API_URL}${PROFILE_API_PREFIX}/upload-avatar`, {
+      method: 'POST',
+      body: formData,
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Ошибка при загрузке аватара' }));
+      throw new Error(error.detail || `Ошибка ${response.status}`);
+    }
+
+    return await response.json();
+  },
+
+  // Получение текущего метода оплаты
+  getPaymentMethod: async (): Promise<PaymentMethodResponse> => {
+    return fetchWithAuth<PaymentMethodResponse>(`${API_URL}${PROFILE_API_PREFIX}/payment-method`);
+  },
+
+  // Изменение метода оплаты
+  changePaymentMethod: async (data: ChangePaymentMethodRequest): Promise<MessageResponse> => {
+    return fetchWithAuth<MessageResponse>(`${API_URL}${PROFILE_API_PREFIX}/payment-method-change`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Получение доступных методов оплаты
+  getAvailablePaymentMethods: async (): Promise<AvailablePaymentMethodsResponse> => {
+    return fetchWithAuth<AvailablePaymentMethodsResponse>(`${API_URL}${PROFILE_API_PREFIX}/available-payment-methods`);
+  },
+
+  // Отмена подписки
+  cancelSubscription: async (courseId: string): Promise<MessageResponse> => {
+    return fetchWithAuth<MessageResponse>(`${API_URL}${PROFILE_API_PREFIX}/subscriptions-cancel?course_id=${courseId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Получение аватара с авторизацией
+  getAvatar: async (avatarPath: string): Promise<string> => {
+    if (!avatarPath) {
+      return '';
+    }
+    
+    // Если путь уже полный URL, возвращаем как есть
+    if (avatarPath.startsWith('http')) {
+      return avatarPath;
+    }
+    
+    // Если путь уже содержит префикс, используем как есть
+    let fullAvatarPath = avatarPath;
+    if (!avatarPath.startsWith('/api/profile/uploads/avatars/')) {
+      // Добавляем префикс только если его нет
+      fullAvatarPath = `${PROFILE_API_PREFIX}/uploads/avatars/${avatarPath.replace(/^.*\//, '')}`;
+    }
+    
+    const finalUrl = `${API_URL}${fullAvatarPath}`;
+    
+    try {
+      const token = getAccessToken();
+      
+      const headers = new Headers();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+
+      const response = await fetch(finalUrl, {
+        method: 'GET',
+        headers: headers,
+      });
+
+      if (!response.ok) {
+        console.error(`Ошибка при загрузке аватара: ${response.status}`);
+        return '';
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      return blobUrl;
+    } catch (error) {
+      console.error('Ошибка при получении аватара:', error);
+      return '';
+    }
+  },
+
+  // Получение URL аватара (устаревший метод, оставляем для совместимости)
+  getAvatarUrl: (avatarPath: string): string => {
+    if (!avatarPath) return '';
+    // Если путь уже полный URL, возвращаем как есть
+    if (avatarPath.startsWith('http')) return avatarPath;
+    
+    // Если путь уже содержит префикс, используем как есть
+    let fullAvatarPath = avatarPath;
+    if (!avatarPath.startsWith('/api/profile/uploads/avatars/')) {
+      // Добавляем префикс только если его нет
+      fullAvatarPath = `${PROFILE_API_PREFIX}/uploads/avatars/${avatarPath.replace(/^.*\//, '')}`;
+    }
+    
+    // Иначе формируем полный URL
+    return `${API_URL}${fullAvatarPath}`;
+  },
+
+  getPaymentMethods: async (): Promise<{ payment_methods: PaymentMethodResponse[] }> => {
+    return fetchWithAuth<{ payment_methods: PaymentMethodResponse[] }>(`${API_URL}${PROFILE_API_PREFIX}/payment-methods`);
+  },
+
+  setDefaultPaymentMethod: async (paymentMethodId: string): Promise<MessageResponse> => {
+    return fetchWithAuth<MessageResponse>(`${API_URL}${PROFILE_API_PREFIX}/set-default-payment-method/${paymentMethodId}`, {
+      method: "PUT"
+    });
+  },
+
+  payWithSavedMethod: async (courseUuid: string, paymentMethodId: string): Promise<any> => {
+    return fetchWithAuth<any>(`${API_URL}${PROFILE_API_PREFIX}/pay-with-saved-method`, {
+      method: "POST",
+      body: JSON.stringify({
+        course_uuid: courseUuid,
+        payment_method_id: paymentMethodId
+      })
+    });
+  },
+
+  subscribe: async (courseUuid: string, paymentMethodId?: string): Promise<any> => {
+    return fetchWithAuth<any>(`${API_URL}${PROFILE_API_PREFIX}/subscribe`, {
+      method: "POST",
+      body: JSON.stringify({ 
+        course_uuid: courseUuid,
+        payment_method_id: paymentMethodId
+      })
+    });
+  },
+
+  subscribeFree: async (courseUuid: string): Promise<{ message: string; subscription_uuid: string }> => {
+    return fetchWithAuth<{ message: string; subscription_uuid: string }>(`${API_URL}${PROFILE_API_PREFIX}/subscribe-free`, {
+      method: "POST",
+      body: JSON.stringify({ 
+        course_uuid: courseUuid
+      })
+    });
+  },
+
+  // Получение рейтинга пользователя
+  getUserRating: async (userId: string): Promise<{user_id: number, rating: number, rating_count: number, subscribers_count: number}> => {
+    try {
+      console.log(`Запрос рейтинга пользователя ${userId}`);
+      const response = await fetchWithAuth<{user_id: number, rating: number, rating_count: number, subscribers_count: number}>(`${API_URL}${PROFILE_API_PREFIX}/user/${userId}/rating`);
+      console.log(`Получен рейтинг пользователя ${userId}:`, response);
+      return response;
+    } catch (error) {
+      console.error(`Ошибка при получении рейтинга пользователя ${userId}:`, error);
+      // В случае ошибки возвращаем значения по умолчанию
+      return { user_id: parseInt(userId), rating: 0, rating_count: 0, subscribers_count: 0 };
+    }
+  },
+};
+
+// =================== COURSES API ===================
+
+export interface CreateCourseData {
+  name: string;
+  description?: string;
+  price?: number;
+  duration?: number;
+  exercise_count?: number;
+  is_published?: boolean;
+}
+
+export interface UpdateCourseData {
+  name?: string;
+  description?: string;
+  price?: number;
+  duration?: number;
+  exercise_count?: number;
+  is_published?: boolean;
+}
+
+// =================== COURSE WORKOUTS API ===================
+
+export interface CourseWorkoutResponse {
+  course_workout_uuid: string;
+  course_uuid: string;
+  name: string;
+  description?: string;
+  video_url?: string;
+  duration?: number;
+  rating: number | null;
+  is_paid: boolean;
+  is_published: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+  is_free?: boolean;
+  is_visible?: boolean;
+  muscle_groups?: Array<{ id: number; percentage: number; name?: string; description?: string; }>;
+}
+
+export interface CreateWorkoutData {
+  course_uuid: string;
+  name: string;
+  description?: string;
+  video_url?: string;
+  duration?: number;
+  is_paid?: boolean;
+  is_published?: boolean;
+  order_index?: number;
+  muscle_groups?: Array<{ id: number; percentage: number; }>;
+}
+
+export interface UpdateWorkoutData {
+  name?: string;
+  description?: string;
+  video_url?: string;
+  duration?: number;
+  is_paid?: boolean;
+  is_published?: boolean;
+  order_index?: number;
+  muscle_groups?: Array<{ id: number; percentage: number; }>;
+}
+
+// API для работы с тренировками курсов
+export const workoutsApi = {
+  // Создание новой тренировки
+  create: async (workoutData: CreateWorkoutData, token: string): Promise<CourseWorkoutResponse> => {
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(workoutData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Ошибка при создании тренировки');
+    }
+
+    return response.json();
+  },
+
+  // Получение тренировки по ID
+  getById: async (workoutId: string, token?: string): Promise<CourseWorkoutResponse> => {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}`, {
+      headers
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Тренировка не найдена');
+    }
+
+    return response.json();
+  },
+
+  // Получение всех тренировок курса
+  getByCourseId: async (courseId: string, publishedOnly = true, token?: string): Promise<CourseWorkoutResponse[]> => {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/courses/${courseId}/workouts?published_only=${publishedOnly}`, {
+      headers
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Ошибка при получении тренировок');
+    }
+
+    return response.json();
+  },
+
+  // Обновление тренировки
+  update: async (workoutId: string, updateData: UpdateWorkoutData, token: string): Promise<CourseWorkoutResponse> => {
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Ошибка при обновлении тренировки');
+    }
+
+    return response.json();
+  },
+
+  // Удаление тренировки
+  delete: async (workoutId: string, token: string): Promise<void> => {
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Ошибка при удалении тренировки');
+    }
+  },
+
+  // Изменение порядка тренировок в курсе
+  reorder: async (courseId: string, workoutOrders: Array<{workout_uuid: string, order_index: number}>, token: string): Promise<void> => {
+    const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/courses/${courseId}/workouts/reorder`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(workoutOrders)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Ошибка при изменении порядка тренировок');
+    }
+  }
+};
+
+// Интерфейсы для работы с рейтингами тренировок
+export interface WorkoutRatingStats {
+  average_rating: number;
+  total_ratings: number;
+}
+
+export interface UserWorkoutRating {
+  rating: number;
+  workout_id: string;
+  user_id: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// API для работы с рейтингами тренировок
+export const workoutRatingsApi = {
+  // Получение статистики рейтинга тренировки
+  getWorkoutRatingStats: async (workoutId: string, token?: string): Promise<WorkoutRatingStats> => {
+    try {
+      console.log(`Запрашиваем статистику рейтинга для тренировки ${workoutId}`);
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}/ratings/stats`, {
+        headers
+      });
+
+      if (response.status === 404) {
+        console.log(`Эндпоинт статистики рейтинга не найден (404), возвращаем значения по умолчанию`);
+        return { average_rating: 0, total_ratings: 0 };
+      }
+
+      if (!response.ok) {
+        console.error(`Ошибка при получении статистики рейтинга: ${response.status}`);
+        return { average_rating: 0, total_ratings: 0 };
+      }
+
+      const data = await response.json();
+      console.log(`Получена статистика рейтинга:`, data);
+      return data;
+    } catch (error) {
+      console.error(`Ошибка при получении статистики рейтинга для тренировки ${workoutId}:`, error);
+      // Возвращаем значения по умолчанию при ошибке
+      return { average_rating: 0, total_ratings: 0 };
+    }
+  },
+
+  // Получение рейтинга пользователя для тренировки (по токену)
+  getUserRating: async (workoutId: string, token: string): Promise<{ rating: number } | null> => {
+    try {
+      console.log(`Запрашиваем рейтинг пользователя для тренировки ${workoutId}`);
+      const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}/ratings/user`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.status === 404) {
+        console.log(`Эндпоинт рейтинга пользователя не найден (404), пользователь еще не оценивал эту тренировку`);
+        return null;
+      }
+
+      if (!response.ok) {
+        console.error(`Ошибка при получении рейтинга пользователя: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      console.log(`Получен рейтинг пользователя:`, data);
+      return data;
+    } catch (error) {
+      console.error(`Ошибка при получении рейтинга пользователя для тренировки ${workoutId}:`, error);
+      return null;
+    }
+  },
+
+  // Добавление или обновление рейтинга тренировки
+  rateWorkout: async (workoutId: string, rating: number, token: string): Promise<UserWorkoutRating | null> => {
+    try {
+      console.log(`Отправляем рейтинг ${rating} для тренировки ${workoutId}`);
+      console.log(`Данные запроса:`, JSON.stringify({ rating }));
+      
+      const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}/ratings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ rating })
+      });
+
+      if (response.status === 404) {
+        console.log(`Эндпоинт добавления рейтинга не найден (404), возвращаем null`);
+        return null;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Ошибка при добавлении рейтинга: ${response.status}`, errorText);
+        console.error(`URL запроса: ${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}/ratings`);
+        console.error(`Тело запроса: ${JSON.stringify({ rating })}`);
+        return null;
+      }
+
+      const data = await response.json();
+      console.log(`Рейтинг успешно добавлен:`, data);
+      return data;
+    } catch (error) {
+      console.error(`Ошибка при добавлении рейтинга для тренировки ${workoutId}:`, error);
+      return null;
+    }
+  },
+
+  // Удаление рейтинга тренировки
+  deleteRating: async (workoutId: string, token: string): Promise<boolean> => {
+    try {
+      console.log(`Удаляем рейтинг для тренировки ${workoutId}`);
+      const response = await fetch(`${API_URL}${COURSE_API_PREFIX}/workouts/${workoutId}/ratings`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.status === 404) {
+        console.log(`Эндпоинт удаления рейтинга не найден (404), возвращаем false`);
+        return false;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Ошибка при удалении рейтинга: ${response.status}`, errorText);
+        return false;
+      }
+
+      console.log(`Рейтинг успешно удален`);
+      return true;
+    } catch (error) {
+      console.error(`Ошибка при удалении рейтинга для тренировки ${workoutId}:`, error);
+      return false;
+    }
+  }
+};
+
+// =================== MOTIVATION API INTERFACES ===================
+
+// Интерфейс ответа от motivation service
+export interface MotivationResponse {
+  generation_date: string;     // Форматированная date_start
+  date_period: string;         // Форматированный период date_ended -> date_start
+  status: string;
+  motivation_message?: string;
+  fact?: string;
+  advice?: string;
+}
+
+// API для работы с motivation service
+export const motivationApi = {
+  // Получение мотивационного сообщения за указанный период
+  getDailyMotivation: async (dateStart: string, dateEnd: string): Promise<MotivationResponse> => {
+    try {
+      console.log(`Запрашиваем мотивационное сообщение за период: ${dateEnd} → ${dateStart}`);
+      
+      const url = `${API_URL}${MOTIVATION_API_PREFIX}/daily-motivation?date_start=${dateStart}&date_end=${dateEnd}`;
+      console.log('URL запроса:', url);
+      
+      const response = await fetchWithAuth<MotivationResponse>(url);
+      
+      console.log('Ответ от motivation service:', response);
+      return response;
+    } catch (error) {
+      console.error('Ошибка при получении мотивационного сообщения:', error);
+      // Возвращаем стандартный ответ при ошибке
+      return {
+        generation_date: '',
+        date_period: '',
+        status: 'error'
+      };
+    }
+  },
+
+  // Перегенерация мотивационного сообщения
+  regenerateMotivation: async (dateStart: string, dateEnd: string): Promise<MotivationResponse> => {
+    try {
+      console.log(`Запрашиваем перегенерацию мотивационного сообщения за период: ${dateEnd} → ${dateStart}`);
+      
+      const url = `${API_URL}${MOTIVATION_API_PREFIX}/regenerate-motivation`;
+      console.log('URL запроса перегенерации:', url);
+      
+      const requestBody = {
+        date_start: dateStart,
+        date_end: dateEnd
+      };
+      
+      const response = await fetchWithAuth<MotivationResponse>(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('Ответ от motivation service (перегенерация):', response);
+      return response;
+    } catch (error) {
+      console.error('Ошибка при перегенерации мотивационного сообщения:', error);
+      // Возвращаем стандартный ответ при ошибке
+      return {
+        generation_date: '',
+        date_period: '',
+        status: 'error'
+      };
+    }
+  },
+
+  // Получение уровня жёсткости ответов пользователя
+  getUserResponseLevel: async (): Promise<{ response_level_id: number } | null> => {
+    try {
+      console.log('Запрашиваем уровень жёсткости ответов пользователя');
+      
+      const url = `${API_URL}${MOTIVATION_API_PREFIX}/user-response-level`;
+      console.log('URL запроса:', url);
+      
+      const response = await fetchWithAuth<{ response_level_id: number }>(url);
+      
+      console.log('Получен уровень жёсткости:', response);
+      return response;
+    } catch (error) {
+      console.error('Ошибка при получении уровня жёсткости:', error);
+      return null;
+    }
+  },
+
+  // Обновление уровня жёсткости ответов пользователя
+  updateUserResponseLevel: async (responseLevel: number): Promise<{ response_level_id: number } | null> => {
+    try {
+      console.log(`Обновляем уровень жёсткости ответов на: ${responseLevel}`);
+      
+      const url = `${API_URL}${MOTIVATION_API_PREFIX}/user-response-level`;
+      console.log('URL запроса:', url);
+      
+      const requestBody = {
+        response_level_id: responseLevel
+      };
+      
+      const response = await fetchWithAuth<{ response_level_id: number }>(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('Уровень жёсткости успешно обновлён:', response);
+      return response;
+    } catch (error) {
+      console.error('Ошибка при обновлении уровня жёсткости:', error);
+      return null;
+    }
+  }
 }; 

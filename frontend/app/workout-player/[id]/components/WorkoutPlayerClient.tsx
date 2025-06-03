@@ -17,6 +17,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ExerciseImage from './ExerciseImage';
 import { workoutProgressApi, WorkoutProgressDto } from '@/app/services/api';
 import { useGif } from '../context/GifContext';
+import TrainerInfo from '@/app/components/shared/TrainerInfo';
+import { useTheme } from '@mui/material/styles';
+import YMAnalytics from '@/app/utils/analytics';
 
 interface WorkoutPlayerClientProps {
   workout: Workout;
@@ -26,6 +29,7 @@ interface WorkoutPlayerClientProps {
 
 export default function WorkoutPlayerClient({ workout, initialExerciseId, initialExerciseSessionUuid }: WorkoutPlayerClientProps) {
   const router = useRouter();
+  const theme = useTheme();
   const [infoOpen, setInfoOpen] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isPaused, setIsPaused] = useState(true);
@@ -89,6 +93,13 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
     setIsPaused(workoutPaused);
     setIsCompleted(workoutCompleted);
   }, [workoutPaused, workoutCompleted]);
+
+  // Логирование информации о тренере
+  useEffect(() => {
+    if (workout.trainer) {
+      console.log("Информация о тренере:", workout.trainer);
+    }
+  }, [workout.trainer]);
 
   // Функция для добавления ID текущего упражнения в URL
   const updateUrlWithExerciseId = useCallback((exerciseId: string) => {
@@ -221,6 +232,9 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
         
         // Логируем и отправляем информацию о начале упражнения
         if (currentExercise) {
+          // Аналитика: начало упражнения
+          YMAnalytics.startExercise(currentExercise.name, workout.id);
+          
           // Генерируем или используем UUID для сессии упражнения
           let exerciseSessionUuid = exerciseSessionUuids[currentExercise.id];
           
@@ -378,6 +392,11 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
 
   // Переход к следующему упражнению
   const handleNext = () => {
+    // Аналитика: переход к следующему упражнению
+    if (currentExercise) {
+      YMAnalytics.nextExercise(currentExercise.name, workout.id || '');
+    }
+
     // Если идет отсчет, останавливаем его
     if (showingCountdown) {
       if (countdownRef.current) {
@@ -460,6 +479,9 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
       };
       console.log("❗️Ручное завершение упражнения при переходе вперед:", endInfo);
       
+      // Аналитика: завершение упражнения при ручном переходе
+      YMAnalytics.completeExercise(currentExercise.name, completedDuration || completedReps, workout.id || '');
+      
       // Немедленно удаляем UUID из состояния и URL
       setExerciseSessionUuids(prev => {
         const newState = {...prev};
@@ -522,6 +544,11 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
 
   // Переход к предыдущему упражнению
   const handlePrevious = () => {
+    // Аналитика: переход к предыдущему упражнению
+    if (currentExercise) {
+      YMAnalytics.previousExercise(currentExercise.name, workout.id || '');
+    }
+
     // Если идет отсчет, останавливаем его
     if (showingCountdown) {
       if (countdownRef.current) {
@@ -609,6 +636,9 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
         user_count: completedReps
       };
       console.log("❗️Ручное завершение упражнения при переходе назад:", endInfo);
+      
+      // Аналитика: завершение упражнения при ручном переходе назад
+      YMAnalytics.completeExercise(currentExercise.name, completedDuration || completedReps, workout.id || '');
       
       // Немедленно удаляем UUID из состояния и URL
       setExerciseSessionUuids(prev => {
@@ -765,6 +795,10 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
       setCountdownValue(null);
       setIsPaused(true);
       togglePause(); // Добавляем вызов togglePause(), чтобы синхронизировать состояние
+      
+      // Аналитика: пауза тренировки
+      YMAnalytics.pauseWorkout('session_' + Date.now());
+      
       return;
     }
     
@@ -794,6 +828,10 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
       // Мгновенно изменяем состояние кнопки
       setIsPaused(false);
       togglePause(); // Добавляем вызов togglePause(), чтобы синхронизировать состояние
+      
+      // Аналитика: возобновление тренировки
+      YMAnalytics.resumeWorkout('session_' + Date.now());
+      
       // Запускаем отсчет если нужно
       startCountdown();
       return;
@@ -802,6 +840,10 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
       // Мгновенно ставим на паузу и обновляем состояние кнопки
       setIsPaused(true);
       togglePause();
+      
+      // Аналитика: пауза тренировки
+      YMAnalytics.pauseWorkout('session_' + Date.now());
+      
       return;
     }
   };
@@ -1105,6 +1147,9 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
           console.log("❗️Завершение упражнения:", endInfo);
           setLoggedExerciseEnd(currentExercise.id);
           
+          // Аналитика: завершение упражнения
+          YMAnalytics.completeExercise(currentExercise.name, completedDuration || completedReps, workout.id || '');
+          
           // Отправляем данные о завершении упражнения
           try {
             // Используем немедленно вызываемую асинхронную функцию
@@ -1399,6 +1444,27 @@ export default function WorkoutPlayerClient({ workout, initialExerciseId, initia
           <Box sx={{ width: 40 }} />
         )}
       </Box>
+
+      {/* Если есть информация о тренере, отображаем блок TrainerInfo */}
+      {workout.trainer && (
+        <Box sx={{ 
+          px: 2, 
+          py: 1,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          flexShrink: 0,
+          width: '100%'
+        }}>
+          <TrainerInfo 
+            name={`${workout.trainer.firstName || ''} ${workout.trainer.lastName || ''}`.trim() || 'Тренер'}
+            avatarUrl={workout.trainer.avatarUrl}
+            rating={workout.trainer.rating || 0}
+            ratingCount={workout.trainer.ratingCount}
+            size="small"
+            theme={theme}
+          />
+        </Box>
+      )}
 
       {/* Индикатор прогресса (точки) и название упражнения */}
       <Box sx={{ 

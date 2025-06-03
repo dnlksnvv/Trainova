@@ -315,10 +315,10 @@ export default function TrainingsPage() {
             color: theme.palette.textColors?.primary,
             '&:hover': {
               borderColor: theme.palette.highlight?.accent,
-              bgcolor: 'rgba(255, 140, 0, 0.08)'
+              bgcolor: `${theme.palette.highlight?.main}14`
             },
             py: 1.5,
-            borderRadius: '8px',
+            borderRadius: '12px',
             textTransform: 'none',
             justifyContent: 'flex-start',
             fontWeight: 'medium'
