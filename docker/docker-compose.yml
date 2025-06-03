@@ -23,6 +23,8 @@ services:
       timeout: 5s
       retries: 5
     
+
+  
   auth_service:
     build:
       context: ../backend/auth_service
@@ -43,7 +45,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-        
+
   workout_service:
     build:
       context: ../backend/workout_service
@@ -68,6 +70,77 @@ services:
       postgres:
         condition: service_healthy
 
+
+  profile_service:
+    build:
+      context: ../backend/profile_service
+      dockerfile: Dockerfile
+    container_name: trainova_profile_service
+    env_file:
+      - ./.env
+    ports:
+      - "8030:8030"
+    environment:
+      - CONFIG_FILE=/.env
+      - DB_HOST=postgres
+    volumes:
+      - ./.env:/.env
+      - profile_avatars_data:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    depends_on:
+      auth_service:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  course_service:
+    build:
+      context: ../backend/course_service
+      dockerfile: Dockerfile
+    container_name: trainova_course_service
+    env_file:
+      - ./.env
+    ports:
+      - "8006:8006"
+    environment:
+      - CONFIG_FILE=/.env
+      - DB_HOST=postgres
+    volumes:
+      - ./.env:/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    depends_on:
+      auth_service:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  motivation_service:
+    build:
+      context: ../backend/motivation_service
+      dockerfile: Dockerfile
+    container_name: trainova_motivation_service
+    env_file:
+      - ./.env
+    ports:
+      - "8008:8008"
+    environment:
+      - CONFIG_FILE=/.env
+      - DB_HOST=postgres
+    volumes:
+      - ./.env:/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    depends_on:
+      auth_service:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+  
   frontend:
     env_file:
       - ./.env
@@ -88,8 +161,10 @@ services:
       workout_service:
         condition: service_started
 
+        
+
   nginx:
-    image: nginx:latest
+    image: nginx:1.25
     container_name: trainova_nginx
     restart: unless-stopped
     ports:
@@ -98,7 +173,7 @@ services:
     volumes:
       - ../nginx/conf.d:/etc/nginx/conf.d
       - /certs:/etc/letsencrypt
-      - /www:/var/www/html 
+      - /www:/var/www/html
     command: >
       /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
     depends_on:
@@ -109,5 +184,6 @@ services:
 volumes:
   postgres_data:
   exercises_content_data:
+  profile_avatars_data:
   certbot_www:
   certbot_conf:
