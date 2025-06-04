@@ -6,17 +6,26 @@ import { Box, Typography, Button, Stack } from "@mui/material";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import InstallPWA from "@/app/components/InstallPWA";
+import { useAuth } from "@/app/auth/hooks/useAuth";
 
 export default function WelcomePage() {
   const theme = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
 
-  // Быстрая инициализация без проверки авторизации
+  // Проверка авторизации и перенаправление
   useEffect(() => {
-    // Просто инициализируем страницу без перенаправлений
-    setLoading(false);
-  }, []);
+    if (!authLoading) {
+      if (user) {
+        // Если пользователь авторизован, перенаправляем на главную страницу
+        router.replace('/');
+      } else {
+        // Если пользователь не авторизован, показываем страницу приветствия
+        setLoading(false);
+      }
+    }
+  }, [user, authLoading, router]);
 
   // Обработчик нажатия на кнопку "Начать"
   const handleStart = () => {
@@ -24,7 +33,12 @@ export default function WelcomePage() {
   };
 
   // Если загрузка, не показываем контент
-  if (loading) {
+  if (loading || authLoading) {
+    return null;
+  }
+
+  // Если пользователь авторизован, не отображаем страницу (будет перенаправление)
+  if (user) {
     return null;
   }
 

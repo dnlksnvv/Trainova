@@ -54,9 +54,9 @@ const SubscriptionsList: React.FC<SubscriptionsListProps> = ({
 
   return (
     <Stack spacing={2}>
-      {subscriptions.map((subscription) => (
+      {subscriptions.map((subscription, index) => (
         <Card 
-          key={subscription.subscription_uuid}
+          key={subscription.subscription_uuid || `subscription-${index}`}
           variant="outlined"
           sx={{ 
             borderRadius: 3,
@@ -71,23 +71,21 @@ const SubscriptionsList: React.FC<SubscriptionsListProps> = ({
         >
           <CardContent sx={{ p: 3 }}>
             {/* Заголовок и цена */}
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
-              <Box sx={{ flex: 1, mr: 2 }}>
-                <Typography 
-                  variant="h6" 
-                  sx={{ 
-                    fontWeight: 600,
-                    color: theme.palette.textColors?.primary,
-                    mb: 0.5
-                  }}
-                >
-                  {subscription.course_name}
-                </Typography>
-                <Typography variant="h6" sx={{ color: theme.palette.highlight?.main, fontWeight: 700 }}>
-                  {(!subscription.price || subscription.price <= 0) ? "Бесплатно" : `${subscription.price} ₽`}
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} alignItems="center">
+            <Box sx={{ mb: 2 }}>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 600,
+                  color: theme.palette.textColors?.primary,
+                  mb: 0.5,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {subscription.course_name}
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
                 <Chip 
                   label="Активна" 
                   size="small" 
@@ -122,7 +120,19 @@ const SubscriptionsList: React.FC<SubscriptionsListProps> = ({
                   Открыть
                 </Button>
               </Stack>
-            </Stack>
+            </Box>
+
+            {/* Цена */}
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: theme.palette.highlight?.main, 
+                fontWeight: 700,
+                mb: 2
+              }}
+            >
+              {(!subscription.price || subscription.price <= 0) ? "Бесплатно" : `${subscription.price} ₽`}
+            </Typography>
 
             {/* Даты */}
             <Stack direction="row" justifyContent="space-between" sx={{ mb: 2 }}>

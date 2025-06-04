@@ -70,13 +70,15 @@ const SearchBar: React.FC<SearchBarProps> = ({
         searchBoxRef.current && 
         !searchBoxRef.current.contains(event.target as Node)
       ) {
-        // Немедленно сбрасываем фокус
+        // Только убираем фокус, НЕ очищаем поле поиска
         setIsSearchFocused(false);
         
-        // Также убираем фокус с поля ввода
+        // Убираем фокус с поля ввода
         if (searchInputRef.current && document.activeElement === searchInputRef.current) {
           searchInputRef.current.blur();
         }
+        
+        // НЕ вызываем onSearchChange('') - это и была причина сброса результатов поиска
       }
     };
 
@@ -103,9 +105,10 @@ const SearchBar: React.FC<SearchBarProps> = ({
   // Функция для очистки поиска
   const handleClearSearch = () => {
     console.log('Очищаем поле поиска');
-    if (searchInputRef.current) {
-      searchInputRef.current.value = '';
-    }
+    // Убираем прямое изменение value через ref - у нас controlled input
+    // if (searchInputRef.current) {
+    //   searchInputRef.current.value = '';
+    // }
     
     setIsSearchFocused(false);
     
@@ -118,6 +121,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
   // Функция для безопасного закрытия поиска
   const safeCloseSearch = () => {
+    console.log('safeCloseSearch вызван');
     // Предотвращаем смещение элементов при закрытии поиска
     if (searchInputRef.current) {
       searchInputRef.current.blur();
@@ -131,6 +135,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
   // Обработчик изменения поискового запроса
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('handleSearchInputChange:', e.target.value);
     if (onSearchChange) {
       onSearchChange(e.target.value);
     }
@@ -373,10 +378,14 @@ const SearchBar: React.FC<SearchBarProps> = ({
                     placeholder={placeholder}
                     onFocus={() => setIsSearchFocused(true)}
                     onBlur={(e) => {
+                      console.log('InputBase onBlur срабатывает');
                       // Предотвращаем немедленный сброс фокуса для избежания визуальных артефактов
                       if (!searchBoxRef.current?.contains(e.relatedTarget as Node)) {
+                        console.log('onBlur: вызываем safeCloseSearch');
                         // Используем безопасное закрытие
                         safeCloseSearch();
+                      } else {
+                        console.log('onBlur: не вызываем safeCloseSearch, клик внутри searchBox');
                       }
                     }}
                     inputRef={searchInputRef}

@@ -684,35 +684,15 @@ export default function CoursesPage() {
   const handleSearchChange = (value: string) => {
     console.log('handleSearchChange вызван с value:', value);
     
-    // Если пустая строка, то немедленно сбрасываем на все курсы
-    if (!value.trim()) {
-      setSearchQuery('');
-      
-      // При пустом поиске сразу показываем все курсы
-      const defaultFilterState = {
-        durationRange: [0, 7200] as [number, number],
-        selectedMuscleGroups: [],
-        sortOrder: activeFilters.sortOrder, // Сохраняем текущую сортировку
-        showHidden: false // По умолчанию не показывать скрытые курсы
-      };
-      
-      // Если другие фильтры не применены, сразу сбрасываем к исходному состоянию
-      if (activeFilters.selectedMuscleGroups.length === 0 && 
-          activeFilters.durationRange[0] === 0 && 
-          activeFilters.durationRange[1] === 7200) {
-        
-        console.log('Сброс поиска на все курсы (быстрый путь)');
-        setFilteredSubscriptionCourses(subscriptionCourses);
-        setFilteredOtherCourses(otherCourses);
-      } else {
-        // Если есть другие активные фильтры, применяем их без поискового запроса
-        console.log('Сброс поиска с сохранением других фильтров');
-        filterCourses('', activeFilters);
-      }
-    } else {
+    setSearchQuery(value);
+    
+    if (value.trim()) {
       // Для непустого поиска используем debounce
-      setSearchQuery(value);
       debouncedFilterCourses(value, activeFilters);
+    } else {
+      // Для пустого поиска сразу показываем все курсы (без других фильтров)
+      // или применяем только активные фильтры
+      filterCourses('', activeFilters);
     }
   };
   
@@ -747,6 +727,17 @@ export default function CoursesPage() {
     debounce((query: string, filters: FilterOptions) => filterCourses(query, filters), 300)
   ).current;
   
+  // Первоначальная инициализация отфильтрованных курсов
+  useEffect(() => {
+    if ((subscriptionCourses.length > 0 || otherCourses.length > 0) &&
+        filteredSubscriptionCourses.length === 0 && 
+        filteredOtherCourses.length === 0) {
+      console.log('Первоначальная инициализация - показываем все курсы');
+      setFilteredSubscriptionCourses(subscriptionCourses);
+      setFilteredOtherCourses(otherCourses);
+    }
+  }, [subscriptionCourses, otherCourses, filteredSubscriptionCourses.length, filteredOtherCourses.length]);
+
   // Инициализация отфильтрованных курсов при загрузке всех курсов
   useEffect(() => {
     console.log('useEffect: изменились списки курсов или фильтры', {

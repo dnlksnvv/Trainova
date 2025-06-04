@@ -198,7 +198,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(userData);
       }
 
-      router.push('/');
+      // Используем replace вместо push для полного обновления страницы
+      router.replace('/');
     } catch (error: any) {
       throw new Error(error.message || 'Произошла ошибка при входе');
     } finally {
@@ -230,7 +231,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       deleteCookie(REFRESH_TOKEN_COOKIE);
       setUser(null);
       setLoading(false);
-      router.push('/auth/login');
+      router.push('/home');
     }
   };
 

@@ -6,6 +6,7 @@ export const WORKOUT_API_PREFIX = process.env.WORKOUT_API_PREFIX;
 export const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
 export const PROFILE_API_PREFIX = process.env.PROFILE_API_PREFIX;
 export const COURSE_API_PREFIX = process.env.COURSE_API_PREFIX || '/api/course';
+export const COMMENT_API_PREFIX = process.env.COMMENT_API_PREFIX || '/api/comment';
 export const MOTIVATION_API_PREFIX = process.env.MOTIVATION_API_PREFIX || '/api/motivation';
 
 
@@ -1224,6 +1225,7 @@ export interface CourseWorkoutResponse {
   is_free?: boolean;
   is_visible?: boolean;
   muscle_groups?: Array<{ id: number; percentage: number; name?: string; description?: string; }>;
+  comments_count?: number;
 }
 
 export interface CreateWorkoutData {
@@ -1622,4 +1624,151 @@ export const motivationApi = {
       return null;
     }
   }
-}; 
+};
+
+// =================== COMMENTS API INTERFACES ===================
+
+export interface CommentResponse {
+  comment_uuid: string;
+  user_id: number;
+  course_workout_uuid: string;
+  content: string;
+  parent_comment_uuid?: string | null;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+  user_name?: string | null;
+  user_avatar_url?: string | null;
+  replies_count: number;
+}
+
+export interface CommentWithReplies extends CommentResponse {
+  replies: CommentResponse[];
+}
+
+export interface CommentList {
+  comments: CommentWithReplies[];
+  total_count: number;
+}
+
+export interface CommentCreate {
+  course_workout_uuid: string;
+  content: string;
+  parent_comment_uuid?: string | null;
+}
+
+export interface CommentUpdate {
+  content: string;
+}
+
+// Класс для работы с API комментариев
+export class CommentsApi {
+  private baseUrl = COMMENT_API_PREFIX;
+
+  // Создание комментария
+  async create(commentData: CommentCreate, token?: string): Promise<CommentResponse> {
+    const response = await fetch(`${this.baseUrl}/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` })
+      },
+      body: JSON.stringify(commentData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Ошибка при создании комментария' }));
+      throw new Error(error.detail || `Ошибка ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  // Получение комментария по UUID
+  async getById(commentUuid: string): Promise<CommentResponse> {
+    const token = getAccessToken();
+    const response = await fetch(`${this.baseUrl}/${commentUuid}`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` })
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Комментарий не найден' }));
+      throw new Error(error.detail || `Ошибка ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  // Обновление комментария
+  async update(commentUuid: string, commentData: CommentUpdate, token?: string): Promise<CommentResponse> {
+    const response = await fetch(`${this.baseUrl}/${commentUuid}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` })
+      },
+      body: JSON.stringify(commentData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Ошибка при обновлении комментария' }));
+      throw new Error(error.detail || `Ошибка ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  // Удаление комментария
+  async delete(commentUuid: string, token?: string): Promise<CommentResponse> {
+    const response = await fetch(`${this.baseUrl}/${commentUuid}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` })
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Ошибка при удалении комментария' }));
+      throw new Error(error.detail || `Ошибка ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  // Получение комментариев для тренировки
+  async getWorkoutComments(
+    workoutUuid: string, 
+    options: {
+      show_deleted?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<CommentList> {
+    const { show_deleted = false, limit = 20, offset = 0 } = options;
+    
+    const params = new URLSearchParams({
+      show_deleted: show_deleted.toString(),
+      limit: limit.toString(),
+      offset: offset.toString()
+    });
+
+    const token = getAccessToken();
+    const response = await fetch(`${this.baseUrl}/workout/${workoutUuid}?${params}`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` })
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Ошибка при загрузке комментариев' }));
+      throw new Error(error.detail || `Ошибка ${response.status}`);
+    }
+
+    return await response.json();
+  }
+}
+
+// Экспортируем экземпляр API
+export const commentsApi = new CommentsApi(); 

@@ -408,7 +408,7 @@ export default function WorkoutCard({
                 </Typography>
               </Stack>
               
-              {/* Комментарии - заглушка */}
+              {/* Комментарии */}
               <Stack direction="row" alignItems="center" spacing={0.5}>
                 <ChatBubbleOutlineIcon 
                   sx={{ 
@@ -422,7 +422,7 @@ export default function WorkoutCard({
                     color: theme.palette.textColors?.secondary,
                   }}
                 >
-                  0
+                  {workout.comments_count || 0}
                 </Typography>
               </Stack>
             </Stack>
