@@ -39,6 +39,7 @@ export interface FilterDialogProps {
   selectedOption: string | null;
   onOptionSelect: (optionId: string) => void;
   availableMuscleGroups: MuscleGroupFilter[];
+  selectedMuscleGroups?: number[];
   onApplyMuscleGroupFilter: (selectedGroups: number[]) => void;
 }
 
@@ -49,6 +50,7 @@ export default function FilterDialog({
   selectedOption,
   onOptionSelect,
   availableMuscleGroups,
+  selectedMuscleGroups,
   onApplyMuscleGroupFilter
 }: FilterDialogProps) {
   const theme = useTheme();
@@ -57,8 +59,16 @@ export default function FilterDialog({
 
   // Инициализация состояния при получении доступных групп мышц
   useEffect(() => {
-    setMuscleGroups(availableMuscleGroups);
-  }, [availableMuscleGroups]);
+    // Если есть выбранные группы мышц, инициализируем их как выбранные
+    if (selectedMuscleGroups && selectedMuscleGroups.length > 0) {
+      setMuscleGroups(availableMuscleGroups.map(group => ({
+        ...group,
+        selected: selectedMuscleGroups.includes(group.id)
+      })));
+    } else {
+      setMuscleGroups(availableMuscleGroups);
+    }
+  }, [availableMuscleGroups, selectedMuscleGroups]);
 
   // Обработчик переключения выбора группы мышц
   const handleMuscleGroupToggle = (id: number) => {

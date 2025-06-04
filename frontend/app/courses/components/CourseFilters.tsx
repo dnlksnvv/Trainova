@@ -22,6 +22,7 @@ export interface FilterOptions {
   durationRange: [number, number]; // Минимальная и максимальная длительность в секундах
   selectedMuscleGroups: number[]; // ID выбранных групп мышц
   sortOrder: 'asc' | 'desc'; // Порядок сортировки по длительности
+  showHidden?: boolean; // Отображать ли скрытые курсы
 }
 
 interface CourseFiltersProps {

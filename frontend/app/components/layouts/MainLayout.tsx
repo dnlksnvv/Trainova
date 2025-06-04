@@ -78,9 +78,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   // Если пользователь не авторизован и не в процессе загрузки, 
   // перенаправляем на страницу входа
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth/login');
-    }
+    // Удаляем перенаправление для неавторизованных пользователей
+    // Теперь они смогут видеть тестовые данные на защищенных страницах
   }, [loading, user, router]);
 
   const handleNavChange = (_event: React.SyntheticEvent, newValue: string) => {
@@ -134,11 +133,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <CircularProgress sx={{ color: theme.palette.highlight?.main }} />
       </Box>
     );
-  }
-
-  // Если пользователь не авторизован, не отображаем содержимое
-  if (!user) {
-    return null;
   }
 
   return (

@@ -74,8 +74,21 @@ import PaymentMethodsList from "../components/profile/PaymentMethodsList";
 export default function ProfilePage() {
   const theme = useTheme();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Перенаправление неавторизованных пользователей на страницу авторизации
+  useEffect(() => {
+    if (!user && !authLoading) {
+      router.push('/auth/login');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  // Если пользователь не авторизован, возвращаем null для предотвращения отображения контента
+  if (!user) {
+    return null;
+  }
 
   // Состояние аккордеона
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -193,6 +206,11 @@ export default function ProfilePage() {
 
   // Загрузка данных профиля
   useEffect(() => {
+    // Если пользователь не авторизован, используем тестовые данные
+    if (!user) {
+      return; // Просто выходим, так как мы перенаправляем на страницу авторизации
+    }
+    
     if (user) {
       loadProfile();
       loadSubscriptions();
@@ -314,6 +332,11 @@ export default function ProfilePage() {
   };
 
   const handleUpdateProfile = async () => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+    
     // Проверяем валидацию перед отправкой
     const firstNameErr = validateName(editFirstName, "Имя");
     const lastNameErr = validateName(editLastName, "Фамилия");
@@ -348,6 +371,11 @@ export default function ProfilePage() {
   };
 
   const handleUploadAvatar = async () => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+    
     if (!selectedFile) {
       showMessage("Выберите файл для загрузки", true);
       return;
@@ -392,6 +420,11 @@ export default function ProfilePage() {
   };
 
   const handleToggleRecurring = async (courseId: string) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+    
     setLoading(true);
     try {
       // await profileApi.toggleSubscriptionRecurring(courseId);
@@ -408,6 +441,11 @@ export default function ProfilePage() {
   };
 
   const handleOpenCourse = async (courseId: string) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+    
     setLoading(true);
     try {
       // Открываем курс в новой вкладке
@@ -420,6 +458,11 @@ export default function ProfilePage() {
   };
 
   const handleSetDefaultPaymentMethod = async (paymentMethodId: string) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+    
     try {
       setLoading(true);
       await profileApi.setDefaultPaymentMethod(paymentMethodId);
@@ -433,6 +476,11 @@ export default function ProfilePage() {
   };
 
   const handleDeletePaymentMethod = async (paymentMethodId: string) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+    
     try {
       setLoading(true);
       // Здесь должен быть API вызов для удаления метода оплаты
@@ -447,8 +495,8 @@ export default function ProfilePage() {
   };
 
   const handleChangePassword = async () => {
-    if (!currentPassword) {
-      showMessage("Пожалуйста, введите текущий пароль", true);
+    if (!user) {
+      router.push('/auth/login');
       return;
     }
 
@@ -457,7 +505,7 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!newPassword || !confirmPassword) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       showMessage("Пожалуйста, заполните все поля", true);
       return;
     }
@@ -559,6 +607,11 @@ export default function ProfilePage() {
   };
 
   const handleChangeEmail = async () => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
     if (emailVerificationStep) {
       await handleVerifyEmailChange();
       return;
