@@ -8,7 +8,7 @@ import prompts_lvls
 logger = logging.getLogger(__name__)
 
 API_KEY = settings.API_KEY
-API_URL = settings.API_URL
+API_URL = settings.API_LLM_URL
 MODEL = settings.MODEL
 
 

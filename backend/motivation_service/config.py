@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     DB_PORT: int
     
     API_KEY: str 
-    API_URL: str
+    API_LLM_URL: str
     MODEL: str
     
     
