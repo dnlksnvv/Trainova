@@ -175,6 +175,7 @@ class CourseWorkoutResponse(BaseModel):
     muscle_groups: Optional[List[MuscleGroupResponse]] = Field(None, description="Список групп мышц с процентом задействованности")
     is_free: bool = Field(False, description="Признак бесплатного урока")
     is_visible: bool = Field(True, description="Признак видимости всего контента тренировки")
+    comments_count: int = Field(0, description="Количество комментариев под тренировкой")
     
     class Config:
         from_attributes = True
