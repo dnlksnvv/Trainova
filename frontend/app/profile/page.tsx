@@ -77,19 +77,6 @@ export default function ProfilePage() {
   const { user, logout, loading: authLoading } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  // Перенаправление неавторизованных пользователей на страницу авторизации
-  useEffect(() => {
-    if (!user && !authLoading) {
-      router.push('/auth/login');
-      return;
-    }
-  }, [user, authLoading, router]);
-
-  // Если пользователь не авторизован, возвращаем null для предотвращения отображения контента
-  if (!user) {
-    return null;
-  }
-
   // Состояние аккордеона
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
@@ -102,18 +89,17 @@ export default function ProfilePage() {
   const [subscribersCount, setSubscribersCount] = useState<number>(0);
   const [ratingLoading, setRatingLoading] = useState(false);
   
-  // Получение аватара с авторизацией
-  const { avatarUrl, loading: avatarLoading } = useAvatar(profile?.avatar_url);
-  const [subscriptions, setSubscriptions] = useState<SubscriptionsResponse | null>(null);
-  const [payments, setPayments] = useState<PaymentsResponse | null>(null);
-  const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [allPaymentMethods, setAllPaymentMethods] = useState<PaymentMethodResponse[]>([]);
-  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
-
   // Состояния загрузки
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
+
+  // Данные
+  const [subscriptions, setSubscriptions] = useState<SubscriptionsResponse | null>(null);
+  const [payments, setPayments] = useState<PaymentsResponse | null>(null);
+  const [allPaymentMethods, setAllPaymentMethods] = useState<PaymentMethodResponse[]>([]);
 
   // Диалоги
   const [editProfileDialogOpen, setEditProfileDialogOpen] = useState(false);
@@ -135,6 +121,54 @@ export default function ProfilePage() {
   const [firstNameError, setFirstNameError] = useState("");
   const [lastNameError, setLastNameError] = useState("");
   const [descriptionError, setDescriptionError] = useState("");
+
+  // Поля для смены пароля
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [passwordVerificationStep, setPasswordVerificationStep] = useState(false);
+
+  // Поля для смены email
+  const [newEmail, setNewEmail] = useState("");
+  const [emailVerificationCode, setEmailVerificationCode] = useState("");
+  const [emailVerificationStep, setEmailVerificationStep] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
+  // Поля для загрузки аватара
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  
+  // Получение аватара с авторизацией
+  const { avatarUrl, loading: avatarLoading } = useAvatar(profile?.avatar_url);
+
+  // Перенаправление неавторизованных пользователей на страницу авторизации
+  useEffect(() => {
+    if (!user && !authLoading) {
+      router.push('/auth/login');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  // Загрузка данных профиля
+  useEffect(() => {
+    // Пропускаем загрузку, если пользователь не авторизован
+    if (!user || authLoading) {
+      return;
+    }
+    
+    // Загружаем данные профиля
+    loadProfile();
+    loadSubscriptions();
+    loadPayments();
+    loadAllPaymentMethods();
+    loadUserRating();
+  }, [user, authLoading]);
+
+  // Если пользователь не авторизован, возвращаем null для предотвращения отображения контента
+  if (!user) {
+    return null;
+  }
 
   // Функции валидации
   const validateName = (name: string, fieldName: string): string => {
@@ -186,39 +220,6 @@ export default function ProfilePage() {
     const error = validateDescription(value);
     setDescriptionError(error);
   };
-
-  // Поля для смены пароля
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [passwordVerificationStep, setPasswordVerificationStep] = useState(false);
-
-  // Поля для смены email
-  const [newEmail, setNewEmail] = useState("");
-  const [emailVerificationCode, setEmailVerificationCode] = useState("");
-  const [emailVerificationStep, setEmailVerificationStep] = useState(false);
-  const [emailError, setEmailError] = useState("");
-
-  // Поля для загрузки аватара
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>("");
-
-  // Загрузка данных профиля
-  useEffect(() => {
-    // Если пользователь не авторизован, используем тестовые данные
-    if (!user) {
-      return; // Просто выходим, так как мы перенаправляем на страницу авторизации
-    }
-    
-    if (user) {
-      loadProfile();
-      loadSubscriptions();
-      loadPayments();
-      loadAllPaymentMethods();
-      loadUserRating();
-    }
-  }, [user]);
 
   const showMessage = (message: string, isError: boolean = false) => {
     if (isError) {
@@ -597,7 +598,7 @@ export default function ProfilePage() {
       setPasswordVerificationStep(false);
       
       setTimeout(() => {
-        router.push('/auth/login');
+        router.push('/home');
       }, 2000);
     } catch (error: any) {
       showMessage(error.message || "Произошла ошибка", true);
@@ -708,7 +709,7 @@ export default function ProfilePage() {
       
       // Перенаправляем на страницу входа через 2 секунды
       setTimeout(() => {
-        router.push('/auth/login');
+        router.push('/home');
       }, 2000);
     } catch (error: any) {
       showMessage(error.message || "Произошла ошибка", true);
@@ -720,7 +721,7 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     try {
       await logout();
-      router.push('/auth/login');
+      router.push('/home');
     } catch (error) {
       console.error("Ошибка при выходе:", error);
     }

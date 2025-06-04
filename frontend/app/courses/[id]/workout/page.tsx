@@ -25,7 +25,10 @@ import {
   useMediaQuery,
   Card,
   Tooltip,
-  Collapse
+  Collapse,
+  Modal,
+  Backdrop,
+  Fade
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
@@ -43,7 +46,21 @@ import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import { coursesApi, workoutsApi, CourseWorkoutResponse, workoutRatingsApi, profileApi } from "@/app/services/api";
+import ReplyIcon from '@mui/icons-material/Reply';
+import DeleteIcon from '@mui/icons-material/Delete';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import CloseIcon from '@mui/icons-material/Close';
+import { 
+  coursesApi, 
+  workoutsApi, 
+  CourseWorkoutResponse, 
+  workoutRatingsApi, 
+  profileApi,
+  commentsApi,
+  CommentResponse,
+  CommentWithReplies,
+  CommentList
+} from "@/app/services/api";
 import { useAuth } from "@/app/auth/hooks/useAuth";
 import MainLayout from "@/app/components/layouts/MainLayout";
 import SearchBar from "@/app/components/shared/SearchBar";
@@ -51,16 +68,6 @@ import WorkoutRating from '@/app/courses/[id]/components/WorkoutRating';
 import TrainerInfo from '@/app/components/shared/TrainerInfo';
 import YMAnalytics from '@/app/utils/analytics';
 import { WorkoutErrorBlock } from './components/WorkoutErrorBlock';
-
-interface Comment {
-  id: string;
-  authorName: string;
-  authorAvatar: string;
-  text: string;
-  date: string;
-  likes: number;
-  isLiked: boolean;
-}
 
 interface WorkoutPlayerPageProps {}
 
@@ -111,9 +118,127 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
   const [totalRatings, setTotalRatings] = useState(Math.floor(Math.random() * 50) + 5);
   
   // Состояния для комментариев
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<CommentList>({ comments: [], total_count: 0 });
   const [newComment, setNewComment] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+  
+  // Состояния для меню действий с комментариями
+  const [commentMenuAnchor, setCommentMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedComment, setSelectedComment] = useState<CommentResponse | null>(null);
+  
+  // Кэш аватарок пользователей
+  const [avatarCache, setAvatarCache] = useState<Map<string, string | null>>(new Map());
+  const [avatarLoadingCache, setAvatarLoadingCache] = useState<Set<string>>(new Set());
+  
+  // Функция для загрузки аватарки с кэшированием
+  const getOrLoadAvatar = useCallback(async (avatarUrl: string | null | undefined, userId?: string): Promise<string | null> => {
+    if (!avatarUrl) return null;
+    
+    // Используем URL как ключ кэша, если userId не предоставлен
+    const cacheKey = userId || avatarUrl;
+    
+    // Проверяем кэш
+    if (avatarCache.has(cacheKey)) {
+      console.log(`🎯 Аватарка найдена в кэше для ${cacheKey}`);
+      return avatarCache.get(cacheKey) || null;
+    }
+    
+    // Проверяем, не загружается ли уже
+    if (avatarLoadingCache.has(cacheKey)) {
+      console.log(`⏳ Аватарка уже загружается для ${cacheKey}`);
+      return null; // Возвращаем null пока загружается
+    }
+    
+    try {
+      console.log(`📥 Загружаем аватарку для ${cacheKey}`);
+      
+      // Добавляем в список загружающихся
+      setAvatarLoadingCache(prev => new Set(prev).add(cacheKey));
+      
+      // Загружаем аватарку
+      const resolvedUrl = await profileApi.getAvatar(avatarUrl);
+      
+      // Сохраняем в кэш
+      setAvatarCache(prev => new Map(prev).set(cacheKey, resolvedUrl));
+      
+      console.log(`✅ Аватарка загружена и сохранена в кэш для ${cacheKey}`);
+      return resolvedUrl;
+    } catch (error) {
+      console.error(`❌ Ошибка загрузки аватарки для ${cacheKey}:`, error);
+      // Сохраняем null в кэш чтобы не пытаться загружать снова
+      setAvatarCache(prev => new Map(prev).set(cacheKey, null));
+      return null;
+    } finally {
+      // Убираем из списка загружающихся
+      setAvatarLoadingCache(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cacheKey);
+        return newSet;
+      });
+    }
+  }, [avatarCache, avatarLoadingCache]);
+  
+  // Очистка кэша при размонтировании компонента
+  useEffect(() => {
+    return () => {
+      console.log('🧹 Очищаем кэш аватарок');
+      setAvatarCache(new Map());
+      setAvatarLoadingCache(new Set());
+    };
+  }, []);
+  
+  // Загрузка аватарки текущего пользователя
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const loadUserAvatar = async () => {
+      if (user) {
+        try {
+          const userProfile = await profileApi.getUserProfile(user.user_id);
+          if (userProfile?.avatar_url) {
+            const avatarUrl = await getOrLoadAvatar(userProfile.avatar_url, `user_${user.user_id}`);
+            setUserAvatarUrl(avatarUrl);
+          }
+        } catch (error) {
+          console.error('Ошибка загрузки аватарки пользователя:', error);
+        }
+      }
+    };
+    loadUserAvatar();
+  }, [user, getOrLoadAvatar]);
+  
+  // Получение токена для API запросов
+  const getToken = () => {
+    return document.cookie
+      .split('; ')
+      .find(row => row.startsWith('access_token='))
+      ?.split('=')[1];
+  };
+  
+  // Загрузка комментариев для тренировки
+  const loadComments = useCallback(async () => {
+    if (!workoutId) return;
+    
+    setCommentsLoading(true);
+    try {
+      // Получаем токен для проверки роли пользователя
+      const token = getToken();
+      const isAdmin = user?.role_id === 1;
+      
+      const commentsData = await commentsApi.getWorkoutComments(workoutId, {
+        show_deleted: isAdmin, // Админы видят удаленные комментарии
+        limit: 50
+      });
+      setComments(commentsData);
+    } catch (error) {
+      console.error("Ошибка при загрузке комментариев:", error);
+      setComments({ comments: [], total_count: 0 });
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [workoutId]);
   
   // Обработчик скролла
   useEffect(() => {
@@ -155,11 +280,22 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
     }
   }, [workout, courseId, workoutId]);
   
+  // Эффект для автообновления комментариев каждые 30 секунд
+  useEffect(() => {
+    if (!workoutId) return;
+    
+    const interval = setInterval(() => {
+      loadComments();
+    }, 30000); // 30 секунд
+    
+    return () => clearInterval(interval);
+  }, [workoutId]);
+  
   // Эффект для загрузки данных тренировки при открытии страницы
   useEffect(() => {
     console.log('🔄 useEffect сработал:', { workoutId, authLoading, user: !!user, courseId });
     
-    if (workoutId) {
+    if (workoutId && !authLoading) {
       // ПРИНУДИТЕЛЬНО ОЧИЩАЕМ ВЕСЬ КЭШ
       sessionStorage.clear();
       localStorage.clear();
@@ -167,9 +303,9 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
       
       // Убираем кэширование - всегда загружаем свежие данные
       loadWorkoutData();
-      loadMockComments(); // Загрузка фиктивных комментариев
+      loadComments(); // Загрузка реальных комментариев
     }
-  }, [workoutId, authLoading, user, courseId]);
+  }, [workoutId, authLoading, courseId]);
   
   // Отдельная функция для проверки владения курсом
   const checkOwnership = useCallback(async (courseId: string, userId: number, workoutData: CourseWorkoutResponse) => {
@@ -309,47 +445,6 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
     }
   };
   
-  // Загрузка фиктивных комментариев
-  const loadMockComments = () => {
-    setCommentsLoading(true);
-    
-    // Имитация задержки загрузки
-    setTimeout(() => {
-      const mockComments: Comment[] = [
-        {
-          id: '1',
-          authorName: 'Александр П.',
-          authorAvatar: '',
-          text: 'Отличная тренировка! Очень помогла мне улучшить технику.',
-          date: '3 дня назад',
-          likes: 12,
-          isLiked: false
-        },
-        {
-          id: '2',
-          authorName: 'Елена С.',
-          authorAvatar: '',
-          text: 'Спасибо за подробное объяснение упражнений. Буду ждать новых видео!',
-          date: '1 неделю назад',
-          likes: 8,
-          isLiked: false
-        },
-        {
-          id: '3',
-          authorName: 'Максим К.',
-          authorAvatar: '',
-          text: 'Слишком сложно для начинающих, но отличная тренировка для продвинутых спортсменов.',
-          date: '2 недели назад',
-          likes: 5,
-          isLiked: false
-        }
-      ];
-      
-      setComments(mockComments);
-      setCommentsLoading(false);
-    }, 1000);
-  };
-  
   // Обработчик возврата на страницу курса
   const handleBackToCourse = () => {
     router.push(`/courses/${courseId}`);
@@ -376,36 +471,108 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
   };
   
   // Обработчик отправки комментария
-  const handleSubmitComment = () => {
-    if (!newComment.trim() || !user) return;
+  const handleSubmitComment = useCallback(async () => {
+    if (!newComment.trim() || !user || !workoutId) return;
     
-    const newCommentObj: Comment = {
-      id: Date.now().toString(),
-      authorName: user.first_name || 'Пользователь',
-      authorAvatar: '',
-      text: newComment.trim(),
-      date: 'только что',
-      likes: 0,
-      isLiked: false
-    };
-    
-    setComments([newCommentObj, ...comments]);
-    setNewComment('');
-  };
+    try {
+      const token = getToken();
+      await commentsApi.create({
+        course_workout_uuid: workoutId,
+        content: newComment.trim(),
+        parent_comment_uuid: null
+      }, token);
+      
+      setNewComment('');
+      // Перезагружаем комментарии
+      await loadComments();
+    } catch (error) {
+      console.error("Ошибка при создании комментария:", error);
+    }
+  }, [newComment, workoutId, loadComments]);
   
-  // Обработчик лайка комментария
-  const handleLikeComment = (commentId: string) => {
-    setComments(comments.map(comment => {
-      if (comment.id === commentId) {
-        return {
-          ...comment,
-          likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-          isLiked: !comment.isLiked
-        };
-      }
-      return comment;
-    }));
-  };
+  // Обработчик отправки ответа на комментарий
+  const handleSubmitReply = useCallback(async (parentCommentUuid: string) => {
+    if (!replyText.trim() || !user || !workoutId) return;
+    
+    try {
+      const token = getToken();
+      await commentsApi.create({
+        course_workout_uuid: workoutId,
+        content: replyText.trim(),
+        parent_comment_uuid: parentCommentUuid
+      }, token);
+      
+      setReplyText('');
+      setReplyingTo(null);
+      // Перезагружаем комментарии
+      await loadComments();
+    } catch (error) {
+      console.error("Ошибка при создании ответа:", error);
+    }
+  }, [replyText, workoutId, loadComments]);
+  
+  // Обработчик удаления комментария
+  const handleDeleteComment = useCallback(async (commentUuid: string) => {
+    try {
+      const token = getToken();
+      await commentsApi.delete(commentUuid, token);
+      
+      // Перезагружаем комментарии
+      await loadComments();
+      
+      // Закрываем меню
+      setCommentMenuAnchor(null);
+      setSelectedComment(null);
+    } catch (error) {
+      console.error("Ошибка при удалении комментария:", error);
+    }
+  }, [loadComments]);
+  
+  // Проверка прав на удаление комментария
+  const canDeleteComment = useCallback((comment: CommentResponse): boolean => {
+    if (!user) return false;
+    
+    // Админ может удалить любой комментарий
+    if (user.role_id === 1) return true;
+    
+    // Автор комментария может удалить свой комментарий
+    if (comment.user_id === Number(user.user_id)) return true;
+    
+    // Автор курса может удалить любой комментарий в своем курсе
+    if (isOwner) return true;
+    
+    return false;
+  }, [user, isOwner]);
+  
+  // Обработчик открытия меню комментария
+  const handleCommentMenuOpen = useCallback((event: React.MouseEvent<HTMLElement>, comment: CommentResponse) => {
+    event.stopPropagation();
+    setCommentMenuAnchor(event.currentTarget);
+    setSelectedComment(comment);
+  }, []);
+  
+  // Обработчик закрытия меню комментария
+  const handleCommentMenuClose = useCallback(() => {
+    setCommentMenuAnchor(null);
+    setSelectedComment(null);
+  }, []);
+  
+  // Обработчик начала ответа на комментарий
+  const handleReplyToComment = useCallback((commentUuid: string) => {
+    setReplyingTo(commentUuid);
+    handleCommentMenuClose();
+  }, [handleCommentMenuClose]);
+  
+  // Функция для переключения состояния разворачивания ответов
+  const toggleRepliesExpansion = useCallback((commentUuid: string) => {
+    const newExpanded = new Set(expandedReplies);
+    if (newExpanded.has(commentUuid)) {
+      newExpanded.delete(commentUuid);
+    } else {
+      newExpanded.add(commentUuid);
+    }
+    setExpandedReplies(newExpanded);
+  }, [expandedReplies]);
   
   // Форматирование длительности
   const formatDuration = (seconds: number): string => {
@@ -423,6 +590,278 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
       return `${hours} ч ${minutes} мин`;
     }
   };
+  
+  // Форматирование даты для комментариев
+  const formatCommentDate = useCallback((dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+    
+    if (diffInMinutes < 1) return 'только что';
+    if (diffInMinutes < 60) return `${diffInMinutes} мин назад`;
+    if (diffInHours < 24) return `${diffInHours} ч назад`;
+    if (diffInDays < 7) return `${diffInDays} дн назад`;
+    
+    return date.toLocaleDateString();
+  }, []);
+  
+  // Компонент для кэшированного отображения аватарки
+  const CachedAvatar = React.memo(({ 
+    avatarUrl, 
+    userId, 
+    userInitial, 
+    size = 40,
+    ...props 
+  }: {
+    avatarUrl?: string | null;
+    userId?: string;
+    userInitial: string;
+    size?: number;
+    [key: string]: any;
+  }) => {
+    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    
+    useEffect(() => {
+      if (!avatarUrl) {
+        setResolvedUrl(null);
+        return;
+      }
+      
+      const cacheKey = userId || avatarUrl;
+      
+      // Проверяем кэш
+      if (avatarCache.has(cacheKey)) {
+        setResolvedUrl(avatarCache.get(cacheKey) || null);
+        return;
+      }
+      
+      // Если уже загружается, не запускаем повторную загрузку
+      if (avatarLoadingCache.has(cacheKey)) {
+        setLoading(true);
+        return;
+      }
+      
+      // Загружаем аватарку
+      setLoading(true);
+      getOrLoadAvatar(avatarUrl, userId).then(url => {
+        setResolvedUrl(url);
+        setLoading(false);
+      });
+    }, [avatarUrl, userId]);
+    
+    return (
+      <Avatar
+        src={resolvedUrl || undefined}
+        sx={{
+          bgcolor: theme.palette.highlight?.main,
+          width: size,
+          height: size,
+          ...props.sx
+        }}
+        {...props}
+      >
+        {loading ? (
+          <CircularProgress size={size * 0.5} sx={{ color: 'white' }} />
+        ) : (
+          userInitial
+        )}
+      </Avatar>
+    );
+  });
+  
+  // Компонент для отображения одного комментария
+  const CommentItem = React.memo(({ 
+    comment, 
+    isReply = false,
+    theme,
+    user,
+    canDeleteComment,
+    handleCommentMenuOpen,
+    replyingTo,
+    replyText,
+    setReplyText,
+    handleSubmitReply,
+    setReplyingTo,
+    handleReplyToComment,
+    formatCommentDate
+  }: { 
+    comment: CommentResponse; 
+    isReply?: boolean;
+    theme: any;
+    user: any;
+    canDeleteComment: (comment: CommentResponse) => boolean;
+    handleCommentMenuOpen: (event: React.MouseEvent<HTMLElement>, comment: CommentResponse) => void;
+    replyingTo: string | null;
+    replyText: string;
+    setReplyText: (text: string) => void;
+    handleSubmitReply: (parentCommentUuid: string) => void;
+    setReplyingTo: (uuid: string | null) => void;
+    handleReplyToComment: (commentUuid: string) => void;
+    formatCommentDate: (dateString: string) => string;
+  }) => {
+    
+    // Мемоизированные значения для предотвращения лишних перерендеров
+    const avatarInitial = React.useMemo(() => comment.user_name?.[0] || 'U', [comment.user_name]);
+    const displayName = React.useMemo(() => 
+      comment.is_deleted ? null : (comment.user_name || 'Пользователь'), 
+      [comment.is_deleted, comment.user_name]
+    );
+    const formattedDate = React.useMemo(() => 
+      formatCommentDate(comment.created_at), 
+      [comment.created_at, formatCommentDate]
+    );
+    
+    return (
+      <ListItem 
+        alignItems="flex-start"
+        sx={{ 
+          px: isReply ? 4 : 0, 
+          py: 2,
+          borderBottom: `1px solid rgba(255,255,255,0.1)`
+        }}
+      >
+        <ListItemAvatar>
+          <CachedAvatar
+            avatarUrl={comment.user_avatar_url}
+            userId={comment.user_id.toString()}
+            userInitial={avatarInitial}
+            size={40}
+          />
+        </ListItemAvatar>
+        
+        <ListItemText
+          primary={
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle2" fontWeight="bold">
+                {displayName}
+              </Typography>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Typography 
+                  variant="caption" 
+                  color={theme.palette.textColors?.secondary}
+                >
+                  {formattedDate}
+                </Typography>
+                {canDeleteComment(comment) && (
+                  <IconButton
+                    size="small"
+                    onClick={(e) => handleCommentMenuOpen(e, comment)}
+                    sx={{ color: theme.palette.textColors?.secondary }}
+                  >
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Stack>
+            </Stack>
+          }
+          secondary={
+            <Box sx={{ mt: 1 }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  whiteSpace: 'pre-line', 
+                  mb: 1,
+                  fontStyle: comment.is_deleted ? 'italic' : 'normal',
+                  color: comment.is_deleted ? theme.palette.textColors?.secondary : 'inherit'
+                }}
+              >
+                {comment.content}
+              </Typography>
+              
+              {/* Кнопка "Ответить" только для корневых комментариев */}
+              {!isReply && user && !comment.is_deleted && (
+                <Button
+                  size="small"
+                  startIcon={<ReplyIcon fontSize="small" />}
+                  onClick={() => handleReplyToComment(comment.comment_uuid)}
+                  sx={{
+                    color: theme.palette.textColors?.secondary,
+                    py: 0,
+                    minWidth: 0,
+                    mb: 1
+                  }}
+                >
+                  Ответить
+                </Button>
+              )}
+              
+              {/* Форма ответа */}
+              {replyingTo === comment.comment_uuid && (
+                <Box sx={{ mt: 2 }}>
+                  <Stack direction="row" spacing={2} alignItems="flex-start">
+                    <CachedAvatar
+                      avatarUrl={userAvatarUrl}
+                      userId={user?.user_id.toString()}
+                      userInitial={user?.first_name?.[0] || 'U'}
+                      size={32}
+                    />
+                    
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="Написать ответ..."
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      multiline
+                      maxRows={4}
+                      size="small"
+                      autoFocus
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: theme.borderRadius.small,
+                          bgcolor: 'rgba(255,255,255,0.05)'
+                        }
+                      }}
+                    />
+                    
+                    <Stack direction="row" spacing={1}>
+                      <IconButton 
+                        onClick={() => handleSubmitReply(comment.comment_uuid)}
+                        disabled={!replyText.trim()}
+                        sx={{ 
+                          color: theme.palette.highlight?.main,
+                          opacity: !replyText.trim() ? 0.5 : 1
+                        }}
+                      >
+                        <SendIcon />
+                      </IconButton>
+                      <IconButton 
+                        onClick={() => {
+                          setReplyingTo(null);
+                          setReplyText('');
+                        }}
+                        sx={{ color: theme.palette.textColors?.secondary }}
+                      >
+                        ×
+                      </IconButton>
+                    </Stack>
+                  </Stack>
+                </Box>
+              )}
+            </Box>
+          }
+        />
+      </ListItem>
+    );
+  }, (prevProps, nextProps) => {
+    // Сравниваем только важные пропсы для предотвращения лишних перерендеров
+    return (
+      prevProps.comment.comment_uuid === nextProps.comment.comment_uuid &&
+      prevProps.comment.content === nextProps.comment.content &&
+      prevProps.comment.user_avatar_url === nextProps.comment.user_avatar_url &&
+      prevProps.comment.user_name === nextProps.comment.user_name &&
+      prevProps.comment.created_at === nextProps.comment.created_at &&
+      prevProps.comment.is_deleted === nextProps.comment.is_deleted &&
+      prevProps.isReply === nextProps.isReply &&
+      prevProps.replyingTo === nextProps.replyingTo &&
+      prevProps.replyText === nextProps.replyText &&
+      prevProps.user?.user_id === nextProps.user?.user_id
+    );
+  });
   
   // Функция для отображения iframe с видео
   const renderVideoPlayer = () => {
@@ -506,6 +945,20 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
   
   return (
     <>
+      {/* CSS для анимации bottom sheet */}
+      <style jsx global>{`
+        @keyframes slideUp {
+          from {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0%);
+            opacity: 1;
+          }
+        }
+      `}</style>
+      
       {/* Панель поиска с кнопками */}
       <SearchBar 
         isSearchBarVisible={isSearchBarVisible} 
@@ -689,7 +1142,7 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
                   
                   {/* Секция комментариев */}
                   <Typography variant="h6" sx={{ mt: 4, mb: 2, fontWeight: 'medium' }}>
-                    Комментарии ({comments.length})
+                    Комментарии ({comments.total_count})
                   </Typography>
                   
                   {/* Форма добавления комментария */}
@@ -700,15 +1153,12 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
                       alignItems="flex-start"
                       sx={{ mb: 3 }}
                     >
-                      <Avatar
-                        sx={{
-                          bgcolor: theme.palette.highlight?.main,
-                          width: 40,
-                          height: 40
-                        }}
-                      >
-                        {user.first_name?.[0] || 'U'}
-                      </Avatar>
+                      <CachedAvatar
+                        avatarUrl={userAvatarUrl}
+                        userId={user?.user_id.toString()}
+                        userInitial={user?.first_name?.[0] || 'U'}
+                        size={40}
+                      />
                       
                       <TextField
                         fullWidth
@@ -718,27 +1168,30 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
                         onChange={(e) => setNewComment(e.target.value)}
                         multiline
                         maxRows={4}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSubmitComment();
+                          }
+                        }}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             borderRadius: theme.borderRadius.small,
                             bgcolor: 'rgba(255,255,255,0.05)'
                           }
                         }}
-                        InputProps={{
-                          endAdornment: (
-                            <IconButton 
-                              onClick={handleSubmitComment}
-                              disabled={!newComment.trim()}
-                              sx={{ 
-                                color: theme.palette.highlight?.main,
-                                opacity: !newComment.trim() ? 0.5 : 1
-                              }}
-                            >
-                              <SendIcon />
-                            </IconButton>
-                          )
-                        }}
                       />
+                      
+                      <IconButton 
+                        onClick={handleSubmitComment}
+                        disabled={!newComment.trim()}
+                        sx={{ 
+                          color: theme.palette.highlight?.main,
+                          opacity: !newComment.trim() ? 0.5 : 1
+                        }}
+                      >
+                        <SendIcon />
+                      </IconButton>
                     </Stack>
                   )}
                   
@@ -747,65 +1200,178 @@ export default function WorkoutPlayerPage({}: WorkoutPlayerPageProps) {
                     <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
                       <CircularProgress size={30} />
                     </Box>
-                  ) : comments.length > 0 ? (
-                    <List sx={{ p: 0 }}>
-                      {comments.map((comment) => (
-                        <ListItem 
-                          key={comment.id}
-                          alignItems="flex-start"
-                          sx={{ 
-                            px: 0, 
-                            py: 2,
-                            borderBottom: `1px solid rgba(255,255,255,0.1)`
-                          }}
-                        >
-                          <ListItemAvatar>
-                            <Avatar sx={{ bgcolor: theme.palette.highlight?.main }}>
-                              {comment.authorName[0]}
-                            </Avatar>
-                          </ListItemAvatar>
-                          
-                          <ListItemText
-                            primary={
-                              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                <Typography variant="subtitle2" fontWeight="bold">
-                                  {comment.authorName}
-                                </Typography>
-                                <Typography 
-                                  variant="caption" 
-                                  color={theme.palette.textColors?.secondary}
-                                >
-                                  {comment.date}
-                                </Typography>
-                              </Stack>
-                            }
-                            secondary={
-                              <Box sx={{ mt: 1 }}>
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ whiteSpace: 'pre-line', mb: 1 }}
-                                >
-                                  {comment.text}
-                                </Typography>
-                                
+                  ) : comments.total_count > 0 ? (
+                    <>
+                      <List sx={{ p: 0 }}>
+                        {comments.comments.map((comment) => (
+                          <Box key={comment.comment_uuid}>
+                            <CommentItem 
+                              comment={comment} 
+                              isReply={false}
+                              theme={theme}
+                              user={user}
+                              canDeleteComment={canDeleteComment}
+                              handleCommentMenuOpen={handleCommentMenuOpen}
+                              replyingTo={replyingTo}
+                              replyText={replyText}
+                              setReplyText={setReplyText}
+                              handleSubmitReply={handleSubmitReply}
+                              setReplyingTo={setReplyingTo}
+                              handleReplyToComment={handleReplyToComment}
+                              formatCommentDate={formatCommentDate}
+                            />
+                            
+                            {/* Кнопка разворачивания ответов */}
+                            {comment.replies && comment.replies.length > 0 && (
+                              <Box sx={{ ml: 6, my: 1 }}>
                                 <Button
                                   size="small"
-                                  startIcon={comment.isLiked ? <ThumbUpIcon fontSize="small" /> : <ThumbUpOutlinedIcon fontSize="small" />}
-                                  onClick={() => handleLikeComment(comment.id)}
+                                  startIcon={
+                                    expandedReplies.has(comment.comment_uuid) ? 
+                                    <ExpandLessIcon fontSize="small" /> : 
+                                    <ExpandMoreIcon fontSize="small" />
+                                  }
+                                  onClick={() => toggleRepliesExpansion(comment.comment_uuid)}
                                   sx={{
-                                    color: comment.isLiked ? theme.palette.highlight?.main : theme.palette.textColors?.secondary,
-                                    py: 0,
-                                    minWidth: 0
+                                    color: theme.palette.highlight?.main,
+                                    textTransform: 'none',
+                                    fontWeight: 'medium',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255,255,255,0.05)'
+                                    }
                                   }}
                                 >
-                                  {comment.likes}
+                                  {expandedReplies.has(comment.comment_uuid) ? 
+                                    'Скрыть ответы' : 
+                                    `${comment.replies.length} ${comment.replies.length === 1 ? 'ответ' : 
+                                      comment.replies.length < 5 ? 'ответа' : 'ответов'}`
+                                  }
                                 </Button>
                               </Box>
-                            }
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
+                            )}
+                            
+                            {/* Отображение ответов при разворачивании */}
+                            <Collapse in={expandedReplies.has(comment.comment_uuid)} timeout="auto" unmountOnExit>
+                              {comment.replies && comment.replies.length > 0 && (
+                                <Box sx={{ ml: 4 }}>
+                                  {comment.replies.map((reply) => (
+                                    <CommentItem 
+                                      key={reply.comment_uuid} 
+                                      comment={reply} 
+                                      isReply={true} 
+                                      theme={theme}
+                                      user={user}
+                                      canDeleteComment={canDeleteComment}
+                                      handleCommentMenuOpen={handleCommentMenuOpen}
+                                      replyingTo={replyingTo}
+                                      replyText={replyText}
+                                      setReplyText={setReplyText}
+                                      handleSubmitReply={handleSubmitReply}
+                                      setReplyingTo={setReplyingTo}
+                                      handleReplyToComment={handleReplyToComment}
+                                      formatCommentDate={formatCommentDate}
+                                    />
+                                  ))}
+                                </Box>
+                              )}
+                            </Collapse>
+                          </Box>
+                        ))}
+                      </List>
+                      
+                      {/* Меню действий с комментариями */}
+                      <Modal
+                        open={Boolean(commentMenuAnchor)}
+                        onClose={handleCommentMenuClose}
+                        closeAfterTransition
+                        BackdropComponent={Backdrop}
+                        BackdropProps={{
+                          timeout: 500,
+                        }}
+                      >
+                        <Fade in={Boolean(commentMenuAnchor)}>
+                          <Box
+                            sx={{
+                              position: 'fixed',
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              bgcolor: theme.palette.backgrounds?.paper,
+                              borderTopLeftRadius: theme.borderRadius.medium,
+                              borderTopRightRadius: theme.borderRadius.medium,
+                              boxShadow: theme.customShadows.strong,
+                              p: 3,
+                              pb: 'max(24px, env(safe-area-inset-bottom))', // Safe area для iOS
+                              zIndex: 10000,
+                              border: `1px solid rgba(255,255,255,0.1)`,
+                              maxHeight: '50vh',
+                              transform: 'translateY(0%)',
+                              animation: 'slideUp 0.3s ease-out'
+                            }}
+                          >
+                            {/* Заголовок с кнопкой закрытия */}
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                              <Typography variant="h6" fontWeight="medium">
+                                Действия с комментарием
+                              </Typography>
+                              <IconButton 
+                                onClick={handleCommentMenuClose}
+                                size="small"
+                                sx={{ color: theme.palette.textColors?.secondary }}
+                              >
+                                <CloseIcon />
+                              </IconButton>
+                            </Stack>
+                            
+                            <Stack spacing={1}>
+                              {/* Кнопка "Ответить" только для корневых комментариев */}
+                              {selectedComment && !selectedComment.is_deleted && 
+                               !comments.comments.some(comment => 
+                                 comment.replies?.some(reply => reply.comment_uuid === selectedComment.comment_uuid)
+                               ) && (
+                                <Button
+                                  fullWidth
+                                  variant="outlined"
+                                  startIcon={<ReplyIcon />}
+                                  onClick={() => handleReplyToComment(selectedComment.comment_uuid)}
+                                  sx={{ 
+                                    justifyContent: 'flex-start',
+                                    color: theme.palette.textColors?.primary,
+                                    borderColor: 'rgba(255,255,255,0.1)',
+                                    '&:hover': {
+                                      borderColor: theme.palette.highlight?.main,
+                                      bgcolor: 'rgba(255,255,255,0.05)'
+                                    }
+                                  }}
+                                >
+                                  Ответить на комментарий
+                                </Button>
+                              )}
+                              
+                              {selectedComment && canDeleteComment(selectedComment) && (
+                                <Button
+                                  fullWidth
+                                  variant="outlined"
+                                  startIcon={<DeleteIcon />}
+                                  onClick={() => handleDeleteComment(selectedComment.comment_uuid)}
+                                  sx={{ 
+                                    justifyContent: 'flex-start',
+                                    color: theme.palette.error?.main,
+                                    borderColor: 'rgba(255,255,255,0.1)',
+                                    '&:hover': {
+                                      borderColor: theme.palette.error?.main,
+                                      bgcolor: 'rgba(255,0,0,0.05)'
+                                    }
+                                  }}
+                                >
+                                  Удалить комментарий
+                                </Button>
+                              )}
+                            </Stack>
+                          </Box>
+                        </Fade>
+                      </Modal>
+                    </>
                   ) : (
                     <Box 
                       sx={{ 
