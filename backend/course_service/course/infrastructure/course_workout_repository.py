@@ -122,6 +122,11 @@ class CourseWorkoutRepository:
                 else:
                     workout_dict['muscle_groups'] = []
                 
+                # Добавляем количество комментариев (для новой тренировки будет 0)
+                workout_dict['comments_count'] = 0
+                workout_dict['is_free'] = False  # Устанавливаем по умолчанию, будет пересчитано в get_workout_by_id
+                workout_dict['is_visible'] = True  # Устанавливаем по умолчанию
+                
                 return CourseWorkoutResponse(**workout_dict)
             
         except ValueError:
@@ -248,6 +253,9 @@ class CourseWorkoutRepository:
                     # Бесплатный контент полностью виден
                     workout_dict['is_visible'] = True
             
+            # Добавляем количество комментариев
+            workout_dict['comments_count'] = await self._get_comments_count(workout_uuid)
+            
             return CourseWorkoutResponse(**workout_dict)
             
         except Exception as e:
@@ -320,6 +328,9 @@ class CourseWorkoutRepository:
                     ] if muscle_groups else []
                     
                     workout_data['muscle_groups'] = muscle_group_response
+                    
+                    # Добавляем количество комментариев
+                    workout_data['comments_count'] = await self._get_comments_count(workout_data['course_workout_uuid'])
                     
                     workouts.append(CourseWorkoutResponse(**workout_data))
                 
@@ -418,6 +429,9 @@ class CourseWorkoutRepository:
                     ] if muscle_groups else []
                     
                     workout_data['muscle_groups'] = muscle_group_response
+                    
+                    # Добавляем количество комментариев
+                    workout_data['comments_count'] = await self._get_comments_count(workout_data['course_workout_uuid'])
                     
                     workouts.append(CourseWorkoutResponse(**workout_data))
                 
@@ -784,6 +798,30 @@ class CourseWorkoutRepository:
                 del workout_data['course_published']
                 del workout_data['course_price']
                 
+                # Получаем группы мышц для тренировки с процентами
+                muscle_groups_query = """
+                    SELECT wmg.muscle_group_id, wmg.percentage, mg.name, mg.description
+                    FROM workout_muscle_groups wmg
+                    JOIN muscle_groups mg ON wmg.muscle_group_id = mg.id
+                    WHERE wmg.course_workout_uuid = $1
+                """
+                
+                muscle_groups = await self.db.fetch_all(muscle_groups_query, workout_data['course_workout_uuid'])
+                muscle_group_response = [
+                    {
+                        "id": mg['muscle_group_id'], 
+                        "percentage": mg['percentage'],
+                        "name": mg['name'],
+                        "description": mg['description']
+                    } 
+                    for mg in muscle_groups
+                ] if muscle_groups else []
+                
+                workout_data['muscle_groups'] = muscle_group_response
+                
+                # Добавляем количество комментариев
+                workout_data['comments_count'] = await self._get_comments_count(workout_data['course_workout_uuid'])
+                
                 filtered_results.append(CourseWorkoutResponse(**workout_data))
             
             return filtered_results
@@ -1109,54 +1147,46 @@ class CourseWorkoutRepository:
             )
 
     async def _update_course_counters(self, course_uuid: uuid.UUID) -> None:
-        """Пересчитывает и обновляет счетчики курса (exercise_count и duration) на основе опубликованных тренировок"""
+        """Обновление счетчиков курса (количество тренировок, общая длительность и т.д.)"""
         try:
-            logger.info(f"Начинаем пересчет счетчиков для курса {course_uuid}")
-            
-            # Запрос для подсчета количества и общей длительности опубликованных тренировок
-            query = """
-                SELECT 
-                    COUNT(*) as published_workouts_count,
-                    COALESCE(SUM(duration), 0) as total_duration
+            # Подсчет количества опубликованных тренировок
+            count_query = """
+                SELECT COUNT(*) as workout_count, COALESCE(SUM(duration), 0) as total_duration
                 FROM course_workouts
                 WHERE course_uuid = $1 AND is_published = true
             """
             
-            result = await self.db.fetch_one(query, course_uuid)
-            logger.info(f"Результат запроса подсчета для курса {course_uuid}: {result}")
+            result = await self.db.fetch_one(count_query, course_uuid)
+            workout_count = result['workout_count'] or 0
+            total_duration = result['total_duration'] or 0
             
-            if result:
-                published_count = result['published_workouts_count']
-                total_duration = result['total_duration']
-                
-                logger.info(f"Новые значения для курса {course_uuid}: exercise_count={published_count}, duration={total_duration}")
-                
-                # Проверяем текущие значения в курсе
-                current_query = """
-                    SELECT exercise_count, duration FROM courses WHERE course_uuid = $1
-                """
-                current_result = await self.db.fetch_one(current_query, course_uuid)
-                logger.info(f"Текущие значения в БД для курса {course_uuid}: {current_result}")
-                
-                # Обновляем счетчики в таблице courses
-                update_query = """
-                    UPDATE courses
-                    SET 
-                        exercise_count = $1,
-                        duration = $2,
-                        updated_at = NOW()
-                    WHERE course_uuid = $3
-                """
-                
-                update_result = await self.db.execute(update_query, published_count, total_duration, course_uuid)
-                logger.info(f"Результат обновления для курса {course_uuid}: {update_result}")
-                
-                # Проверяем значения после обновления
-                after_update_result = await self.db.fetch_one(current_query, course_uuid)
-                logger.info(f"Значения после обновления для курса {course_uuid}: {after_update_result}")
-                
-                logger.info(f"Обновлены счетчики курса {course_uuid}: exercise_count={published_count}, duration={total_duration}")
+            # Обновление счетчиков в таблице courses
+            update_query = """
+                UPDATE courses
+                SET 
+                    exercise_count = $1,
+                    duration = $2,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE course_uuid = $3
+            """
+            
+            await self.db.execute(update_query, workout_count, total_duration, course_uuid)
             
         except Exception as e:
-            logger.error(f"Ошибка при пересчете счетчиков курса {course_uuid}: {str(e)}")
-            raise 
+            logger.error(f"Ошибка при обновлении счетчиков курса {course_uuid}: {e}")
+
+    async def _get_comments_count(self, workout_uuid: uuid.UUID) -> int:
+        """Получение количества комментариев для тренировки (не считая удаленные)"""
+        try:
+            query = """
+                SELECT COUNT(*) 
+                FROM comments 
+                WHERE course_workout_uuid = $1 AND is_deleted = FALSE
+            """
+            
+            count = await self.db.fetch_val(query, workout_uuid)
+            return count or 0
+            
+        except Exception as e:
+            logger.error(f"Ошибка при подсчете комментариев для тренировки {workout_uuid}: {e}")
+            return 0 

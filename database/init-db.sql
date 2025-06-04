@@ -1169,3 +1169,35 @@ END $$;
 -- Создаем индексы для таблицы user_response_levels
 CREATE INDEX IF NOT EXISTS idx_user_response_levels_user_id ON user_response_levels(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_response_levels_response_level_id ON user_response_levels(response_level_id); 
+
+-- Таблица комментариев к тренировкам курсов
+CREATE TABLE IF NOT EXISTS comments (
+    comment_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    course_workout_uuid UUID NOT NULL REFERENCES course_workouts(course_workout_uuid) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    parent_comment_uuid UUID REFERENCES comments(comment_uuid) ON DELETE CASCADE,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Проверка и добавление недостающих столбцов в таблицу comments
+SELECT add_column_if_not_exists('comments', 'comment_uuid', 'UUID PRIMARY KEY', 'gen_random_uuid()');
+SELECT add_column_if_not_exists('comments', 'user_id', 'INT NOT NULL REFERENCES users(id) ON DELETE CASCADE');
+SELECT add_column_if_not_exists('comments', 'course_workout_uuid', 'UUID NOT NULL REFERENCES course_workouts(course_workout_uuid) ON DELETE CASCADE');
+SELECT add_column_if_not_exists('comments', 'content', 'TEXT NOT NULL');
+SELECT add_column_if_not_exists('comments', 'parent_comment_uuid', 'UUID REFERENCES comments(comment_uuid) ON DELETE CASCADE');
+SELECT add_column_if_not_exists('comments', 'is_deleted', 'BOOLEAN', 'FALSE');
+SELECT add_column_if_not_exists('comments', 'created_at', 'TIMESTAMP WITH TIME ZONE', 'CURRENT_TIMESTAMP');
+SELECT add_column_if_not_exists('comments', 'updated_at', 'TIMESTAMP WITH TIME ZONE', 'CURRENT_TIMESTAMP');
+
+-- Проверка лишних столбцов в таблице comments
+SELECT check_extra_columns('comments', ARRAY['comment_uuid', 'user_id', 'course_workout_uuid', 'content', 'parent_comment_uuid', 'is_deleted', 'created_at', 'updated_at']);
+
+-- Индексы для таблицы комментариев
+CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_comments_course_workout_uuid ON comments(course_workout_uuid);
+CREATE INDEX IF NOT EXISTS idx_comments_parent_comment_uuid ON comments(parent_comment_uuid);
+CREATE INDEX IF NOT EXISTS idx_comments_is_deleted ON comments(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at); 
