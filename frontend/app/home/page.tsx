@@ -20,7 +20,7 @@ export default function WelcomePage() {
 
   // Обработчик нажатия на кнопку "Начать"
   const handleStart = () => {
-    router.push('/auth');
+    router.push('/trainings');
   };
 
   // Если загрузка, не показываем контент

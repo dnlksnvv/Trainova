@@ -29,6 +29,107 @@ import { coursesApi, CourseResponse, CourseFilterRequest, profileApi, muscleGrou
 import { useAvatar } from "@/app/hooks/useAvatar";
 import CourseFilters, { FilterOptions } from "./components/CourseFilters";
 
+// Тестовые данные для неавторизованных пользователей
+const TEST_COURSES: PurchasedCourseData[] = [
+  {
+    id: 'test-1',
+    title: "Недельный интенсив «Большая грудь»",
+    subscriptionUntil: "03.05.2025",
+    description: "Курс направлен на памп груди. За неделю мы наберем 1кг мышечной массы. Адаптируем тело к высоким нагрузкам и поднимаем силу духа.",
+    duration: "12 часов",
+    muscleUsage: [
+      {
+        name: "Руки",
+        color: "#FF8080",
+        percent: 30,
+      },
+      {
+        name: "Ноги",
+        color: "#81c784",
+        percent: 20,
+      },
+      {
+        name: "Грудь",
+        color: "#64b5f6",
+        percent: 50,
+      },
+    ],
+    lastWorkout: "Вчера",
+    completedLessons: 9,
+    totalLessons: 13,
+    trainerName: "Виктор Чак-Чак",
+    trainerRating: 4.25,
+    courseRating: 4.11,
+    subscribersCount: 1256,
+    is_published: true
+  },
+  {
+    id: 'test-2',
+    title: "Недельный интенсив «Большая нога»",
+    subscriptionUntil: "03.05.2025",
+    description: "Курс направлен на развитие мышц ног. За неделю мы наберем 1кг мышечной массы. Адаптируем тело к высоким нагрузкам и поднимаем силу духа.",
+    duration: "15 часов",
+    muscleUsage: [
+      {
+        name: "Руки",
+        color: "#FF8080",
+        percent: 20,
+      },
+      {
+        name: "Ноги",
+        color: "#81c784",
+        percent: 50,
+      },
+      {
+        name: "Грудь",
+        color: "#64b5f6",
+        percent: 30,
+      },
+    ],
+    lastWorkout: "Вчера",
+    completedLessons: 4,
+    totalLessons: 10,
+    trainerName: "Виктор Чак-Чак",
+    trainerRating: 4.9,
+    courseRating: 4.25,
+    subscribersCount: 1543,
+    is_published: true
+  },
+  {
+    id: 'test-3',
+    title: "Курс «Сильные руки»",
+    subscriptionUntil: "",
+    description: "Интенсивный курс для развития мышц рук и плечевого пояса. Подходит для начинающих и продвинутых спортсменов.",
+    duration: "10 часов",
+    muscleUsage: [
+      {
+        name: "Руки",
+        color: "#FF8080",
+        percent: 70,
+      },
+      {
+        name: "Плечи",
+        color: "#81c784",
+        percent: 20,
+      },
+      {
+        name: "Грудь",
+        color: "#64b5f6",
+        percent: 10,
+      },
+    ],
+    lastWorkout: "",
+    completedLessons: 0,
+    totalLessons: 8,
+    trainerName: "Алексей Тренер",
+    trainerRating: 0.96,
+    courseRating: 0.94,
+    subscribersCount: 987,
+    price: 2500,
+    is_published: true
+  }
+];
+
 export default function CoursesPage() {
   const theme = useTheme();
   const router = useRouter();
@@ -69,6 +170,16 @@ export default function CoursesPage() {
   // Функция загрузки курсов
   const loadCourses = useCallback(async () => {
     if (authLoading) return;
+    
+    // Если пользователь не авторизован, используем тестовые данные
+    if (!user && !authLoading) {
+      setSubscriptionCourses(TEST_COURSES.slice(0, 2));
+      setOtherCourses(TEST_COURSES.slice(2));
+      setFilteredSubscriptionCourses(TEST_COURSES.slice(0, 2));
+      setFilteredOtherCourses(TEST_COURSES.slice(2));
+      setLoading(false);
+      return;
+    }
     
     try {
       setLoading(true);
@@ -286,7 +397,7 @@ export default function CoursesPage() {
     } finally {
       setLoading(false);
     }
-  }, [authLoading, activeFilters.showHidden, theme.palette.highlight?.main]);
+  }, [authLoading, user, activeFilters.showHidden]);
   
   // Загрузка курсов при инициализации
   useEffect(() => {
@@ -386,6 +497,12 @@ export default function CoursesPage() {
 
   // Обработчик перехода к курсу
   const handleCourseClick = (courseId: string | number) => {
+    // Если пользователь не авторизован, перенаправляем на страницу входа
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+    
     router.push(`/courses/${courseId}`);
   };
 

@@ -11,6 +11,7 @@ import MainLayout from '../components/layouts/MainLayout';
 import { appWorkoutsApi, AppWorkoutDto } from '../services/api';
 import { useIsAdmin } from '../hooks/useIsAdmin';
 import FilterDialog, { FilterOption, MuscleGroupFilter } from '../components/shared/FilterDialog';
+import { useAuth } from '../hooks/useAuth';
 
 // Опции фильтрации
 const FILTER_OPTIONS: FilterOption[] = [
@@ -19,14 +20,73 @@ const FILTER_OPTIONS: FilterOption[] = [
   { id: 'muscle_groups', label: 'По включенным группам мышц' }
 ];
 
+// Тестовые данные для неавторизованных пользователей
+const TEST_TRAININGS = [
+  {
+    id: 'test-1',
+    title: 'Тренировка для начинающих',
+    description: 'Базовая тренировка для новичков, включающая упражнения на все группы мышц',
+    duration: '45 мин 00 сек',
+    exercisesCount: 8,
+    lastWorkout: 'Новая',
+    lastSessionTime: '',
+    totalWorkoutTime: 2700,
+    isInProgress: false,
+    last_session_uuid: '',
+    rating: 0.92
+  },
+  {
+    id: 'test-2',
+    title: 'Интенсивная кардио-тренировка',
+    description: 'Высокоинтенсивная тренировка для сжигания жира и улучшения выносливости',
+    duration: '60 мин 00 сек',
+    exercisesCount: 12,
+    lastWorkout: 'Новая',
+    lastSessionTime: '',
+    totalWorkoutTime: 3600,
+    isInProgress: false,
+    last_session_uuid: '',
+    rating: 0.95
+  },
+  {
+    id: 'test-3',
+    title: 'Силовая тренировка верхней части тела',
+    description: 'Тренировка для развития силы и мышечной массы верхней части тела',
+    duration: '75 мин 00 сек',
+    exercisesCount: 10,
+    lastWorkout: 'Новая',
+    lastSessionTime: '',
+    totalWorkoutTime: 4500,
+    isInProgress: false,
+    last_session_uuid: '',
+    rating: 0.98
+  }
+];
+
+// Определяем тип для тренировок, включая тестовые данные
+type TrainingData = AppWorkoutDto | {
+  id: string;
+  title: string;
+  description?: string;
+  duration: string;
+  exercisesCount: number;
+  lastWorkout: string;
+  lastSessionTime: string;
+  totalWorkoutTime: number;
+  isInProgress: boolean;
+  last_session_uuid: string;
+  rating?: number;
+};
+
 export default function TrainingsPage() {
   const theme = useTheme();
   const router = useRouter();
   const isAdmin = useIsAdmin();
+  const { isAuthenticated } = useAuth();
   
   // Состояние для списка тренировок
-  const [trainings, setTrainings] = useState<AppWorkoutDto[]>([]);
-  const [filteredTrainings, setFilteredTrainings] = useState<AppWorkoutDto[]>([]);
+  const [trainings, setTrainings] = useState<TrainingData[]>([]);
+  const [filteredTrainings, setFilteredTrainings] = useState<TrainingData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -38,11 +98,18 @@ export default function TrainingsPage() {
 
   // Загрузка тренировок при монтировании компонента
   useEffect(() => {
+    // Если пользователь не авторизован, используем тестовые данные
+    if (!isAuthenticated) {
+      setTrainings(TEST_TRAININGS);
+      setFilteredTrainings(TEST_TRAININGS);
+      setLoading(false);
+      return;
+    }
+
     const fetchTrainings = async () => {
       try {
         setLoading(true);
         const data = await appWorkoutsApi.getAppWorkouts();
-        setTrainings(data);
         
         // Собираем все уникальные группы мышц из тренировок
         const uniqueMuscleGroups = new Map<number, string>();
@@ -61,6 +128,8 @@ export default function TrainingsPage() {
         );
         
         setMuscleGroups(muscleGroupsArray);
+        setTrainings(data);
+        setFilteredTrainings(data);
         setError(null);
       } catch (error) {
         console.error('Ошибка при загрузке тренировок:', error);
@@ -71,7 +140,7 @@ export default function TrainingsPage() {
     };
 
     fetchTrainings();
-  }, []);
+  }, [isAuthenticated]);
 
   // Применение фильтра при изменении списка тренировок или выбранного фильтра
   useEffect(() => {
@@ -86,6 +155,9 @@ export default function TrainingsPage() {
     // Сначала применяем фильтр по группам мышц, если он выбран
     if (selectedFilter === 'muscle_groups' && selectedMuscleGroups.length > 0) {
       filtered = filtered.filter(workout => {
+        // Для тестовых данных пропускаем фильтрацию по группам мышц
+        if (!('exercises' in workout)) return true;
+        
         // Получаем все уникальные ID групп мышц в этой тренировке
         const workoutMuscleGroupIds = new Set<number>();
         workout.exercises.forEach(exercise => {
@@ -101,15 +173,31 @@ export default function TrainingsPage() {
 
     // Затем сортируем результат
     if (selectedFilter === 'newest' || selectedFilter === 'muscle_groups') {
+      // Для тестовых данных сортировка не требуется
+      if (!isAuthenticated) {
+        setFilteredTrainings(filtered);
+        return;
+      }
+      
       // Сначала новые тренировки (по дате последней сессии или дате обновления)
       filtered.sort((a, b) => {
+        if (!('last_session_start' in a) || !('last_session_start' in b)) return 0;
+        
         const dateA = a.last_session_start ? new Date(a.last_session_start).getTime() : a.updated_at ? new Date(a.updated_at).getTime() : 0;
         const dateB = b.last_session_start ? new Date(b.last_session_start).getTime() : b.updated_at ? new Date(b.updated_at).getTime() : 0;
         return dateB - dateA; // От новых к старым
       });
     } else if (selectedFilter === 'oldest') {
+      // Для тестовых данных сортировка не требуется
+      if (!isAuthenticated) {
+        setFilteredTrainings(filtered);
+        return;
+      }
+      
       // Сначала старые тренировки
       filtered.sort((a, b) => {
+        if (!('last_session_start' in a) || !('last_session_start' in b)) return 0;
+        
         const dateA = a.last_session_start ? new Date(a.last_session_start).getTime() : a.updated_at ? new Date(a.updated_at).getTime() : 0;
         const dateB = b.last_session_start ? new Date(b.last_session_start).getTime() : b.updated_at ? new Date(b.updated_at).getTime() : 0;
         return dateA - dateB; // От старых к новым
@@ -117,7 +205,7 @@ export default function TrainingsPage() {
     }
 
     setFilteredTrainings(filtered);
-  }, [trainings, selectedFilter, selectedMuscleGroups]);
+  }, [trainings, selectedFilter, selectedMuscleGroups, isAuthenticated]);
 
   // Обработчик для кнопки "Пул упражнений"
   const handleExercisePool = () => {
@@ -126,8 +214,13 @@ export default function TrainingsPage() {
 
   // Обработчик для кнопки "+ Тренировка"
   const handleAddTraining = () => {
+    // Если пользователь не авторизован, перенаправляем на страницу входа
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+      return;
+    }
+    
     // Перенаправляем на страницу настройки новой тренировки
-    // Передаем ID 'new' чтобы обозначить создание новой тренировки
     router.push('/training-settings/new');
   };
 
@@ -354,15 +447,23 @@ export default function TrainingsPage() {
           >
             {selectedFilter === 'muscle_groups' && selectedMuscleGroups.length > 0 
               ? 'Нет тренировок, содержащих выбранные группы мышц' 
-              : 'У вас пока нет тренировок. Нажмите кнопку "+ Тренировка", чтобы создать новую.'}
+              : isAuthenticated 
+                ? 'У вас пока нет тренировок. Нажмите кнопку "+ Тренировка", чтобы создать новую.'
+                : 'Для создания и сохранения тренировок необходимо авторизоваться.'
+            }
           </Typography>
         ) : (
           /* Блоки тренировок */
           <Stack spacing={2}>
-            {filteredTrainings.map((training) => (
+            {filteredTrainings.map((training, index) => (
               <AppTrainingCard 
-                key={training.app_workout_uuid} 
-                training={mapTrainingToCardData(training)} 
+                key={index} 
+                training={
+                  'exercises' in training ? 
+                  mapTrainingToCardData(training) : 
+                  training
+                }
+                isDemo={!isAuthenticated}
               />
             ))}
           </Stack>
@@ -377,6 +478,7 @@ export default function TrainingsPage() {
         selectedOption={selectedFilter}
         onOptionSelect={handleFilterSelect}
         availableMuscleGroups={muscleGroups}
+        selectedMuscleGroups={selectedMuscleGroups}
         onApplyMuscleGroupFilter={handleApplyMuscleGroupFilter}
       />
     </MainLayout>

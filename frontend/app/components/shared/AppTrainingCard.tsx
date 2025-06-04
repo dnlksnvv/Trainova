@@ -25,6 +25,7 @@ export interface AppTrainingData {
 
 export interface AppTrainingCardProps {
   training: AppTrainingData;
+  isDemo?: boolean;
 }
 
 // Создаем анимацию пульсации для индикатора
@@ -69,7 +70,7 @@ const ActiveIndicator = styled(Box)(({ theme }) => ({
   animation: `${pulseAnimation} 1.5s infinite`
 }));
 
-export default function AppTrainingCard({ training }: AppTrainingCardProps) {
+export default function AppTrainingCard({ training, isDemo = false }: AppTrainingCardProps) {
   const theme = useTheme();
   const router = useRouter();
   const isAdmin = useIsAdmin();
@@ -85,12 +86,23 @@ export default function AppTrainingCard({ training }: AppTrainingCardProps) {
   // Обработчик нажатия на кнопку настроек
   const handleSettingsClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Предотвращаем всплытие события, чтобы не срабатывал onCardClick
+    
+    if (isDemo) {
+      router.push('/auth/login');
+      return;
+    }
+    
     router.push(`/training-settings/${training.id}`);
   };
 
   // Обработчик нажатия на кнопку запуска тренировки
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Предотвращаем всплытие события
+    
+    if (isDemo) {
+      router.push('/auth/login');
+      return;
+    }
     
     if (isInProgress) {
       // Если тренировка в процессе, показываем диалог
@@ -103,6 +115,11 @@ export default function AppTrainingCard({ training }: AppTrainingCardProps) {
 
   // Обработчик нажатия на карточку
   const onCardClick = () => {
+    if (isDemo) {
+      router.push('/auth/login');
+      return;
+    }
+    
     if (isInProgress) {
       // Если тренировка в процессе, показываем диалог
       setShowResumeDialog(true);
