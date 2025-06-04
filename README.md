@@ -17,12 +17,15 @@
 - [Презентация 1 аттестация](/docs/user/Презентация.pdf)
 - [Видео-презентация 1 аттестация](https://rutube.ru/video/private/cc8313c6f5b8fd51e4a147fbbf77e955/?p=6YHkhxMIlKlXTFrRJjWFIg)
 - [Брендбук](/docs/user/Брендбук.pdf)
+- [Брендбук - ИТОГ](/docs/user/Брендбук%20ИТОГ.pdf)
 ##
 - [Презентация 2 аттестация](/docs/user/Презентация%202%20аттестация.pdf) [pptx](/docs/user/Презентация%202%20аттестация.pptx)
 - [Видео-презентация 2 аттестация](https://rutube.ru/video/private/62fa84982956dfd0ef31ce04ddd2672d/?p=x6IpuzpiNXdFpvgwk5X8_g)
 
 ### Бизнес-документация
+- [Курсовая работа](/docs/user/Курсовая%20работа%20Trainova.pdf) [docx](/docs/user/Курсовая%20работа%20Trainova.docx)
 - [Техническое задание](/docs/user/Техническое%20задание%20Trainova.pdf) [docx](/docs/user/Техническое%20задание%20Trainova.docx)
+- [Техническое задание - ИТОГ](/docs/user/Техническое%20задание%20Trainova%20ИТОГ.pdf) [docx](/docs/user/Техническое%20задание%20Trainova%20ИТОГ.docx)
 - [Результаты опроса](/docs/user/Результаты%20опроса.pdf) [docx](/docs/user/Результаты%20опроса.docx)
 - [Финансовая модель](/docs/user/Финансовая%20модель.pdf) [docx](/docs/user/Финансовая%20модель.docx)
 - [SWOT-анализ](/docs/user/SWOT.pdf) [docx](/docs/user/SWOT.docx)
