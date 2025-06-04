@@ -16,6 +16,6 @@ ENV DB_NAME="trainova"
 ENV DB_USER="postgres"
 ENV DB_PASSWORD="postgres"
 
-EXPOSE 8000
+EXPOSE 8009
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8009"]
