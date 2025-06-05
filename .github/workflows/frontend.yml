@@ -73,16 +73,16 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
-            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose down"
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose -f docker-compose-frontend.yml down && docker image prune -f"
 
       - name: 🧱 Docker Compose Build
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
-            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose build --no-cache"
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose -f docker-compose-frontend.yml build --no-cache"
 
       - name: 🚀 Docker Compose Up
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
-            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose up -d"
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose -f docker-compose-frontend.yml up -d"

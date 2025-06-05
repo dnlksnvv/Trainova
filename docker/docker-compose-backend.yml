@@ -39,8 +39,6 @@ services:
       - DB_HOST=postgres
     volumes:
       - ./.env:/.env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -61,8 +59,6 @@ services:
     volumes:
       - ./.env:/.env
       - exercises_content_data:/app/exercises_content
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
       auth_service:
@@ -86,8 +82,6 @@ services:
     volumes:
       - ./.env:/.env
       - profile_avatars_data:/app/uploads
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
       auth_service:
@@ -109,8 +103,6 @@ services:
       - DB_HOST=postgres
     volumes:
       - ./.env:/.env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
       auth_service:
@@ -155,8 +147,6 @@ services:
       - DB_HOST=postgres
     volumes:
       - ./.env:/.env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
       auth_service:
@@ -164,28 +154,6 @@ services:
       postgres:
         condition: service_healthy
   
-  frontend:
-    env_file:
-      - ./.env
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-      args:
-        - AUTH_API_PREFIX=${AUTH_API_PREFIX}
-        - WORKOUT_API_PREFIX=${WORKOUT_API_PREFIX}
-        - API_URL=${API_URL}
-    container_name: trainova_frontend
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
-    depends_on:
-      auth_service:
-        condition: service_started
-      workout_service:
-        condition: service_started
-
-        
-
   nginx:
     image: nginx:1.25
     container_name: trainova_nginx
@@ -197,16 +165,32 @@ services:
       - ../nginx/conf.d:/etc/nginx/conf.d
       - /certs:/etc/letsencrypt
       - /www:/var/www/html
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: >
       /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
     depends_on:
       - auth_service
       - workout_service
-      - frontend
 
 volumes:
   postgres_data:
+    external: true
+    name: docker_postgres_data
   exercises_content_data:
+    external: true  
+    name: docker_exercises_content_data
   profile_avatars_data:
+    external: true
+    name: docker_profile_avatars_data
   certbot_www:
+    external: true
+    name: docker_certbot_www
   certbot_conf:
+    external: true
+    name: docker_certbot_conf
+
+networks:
+  default:
+    name: trainova_network
+    driver: bridge
