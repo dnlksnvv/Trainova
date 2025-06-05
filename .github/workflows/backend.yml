@@ -38,7 +38,7 @@ jobs:
       - name: 📦 Install dependencies for all services
         run: |
           pip install pytest
-          for service in auth_service workout_service; do
+          for service in auth_service workout_service comment_service profile_service motivation_service course_service; do
             pip install -r backend/$service/requirements.txt
           done
 
@@ -53,7 +53,7 @@ jobs:
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }}:/home/${{ secrets.SSH_USER }}/Trainova/docker/.env .env
 
-      - name: ✅ Run pytest for all backend services
+      - name: ✅ Run pytest for services with tests
         run: |
           for service in auth_service workout_service; do
             echo "Running tests for $service"
@@ -91,16 +91,16 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
-            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose down"
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose -f docker-compose-backend.yml down && docker image prune -f"
 
       - name: 🧱 Docker Compose Build
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
-            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose build --no-cache"
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose -f docker-compose-backend.yml build --no-cache"
 
       - name: 🚀 Docker Compose Up
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} \
-            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose up -d"
+            "cd /home/${{ secrets.SSH_USER }}/Trainova/docker && docker-compose -f docker-compose-backend.yml up -d"

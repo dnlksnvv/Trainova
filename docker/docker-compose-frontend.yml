@@ -1,0 +1,24 @@
+services:  
+  frontend:
+    env_file:
+      - ./.env
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        - AUTH_API_PREFIX=${AUTH_API_PREFIX}
+        - WORKOUT_API_PREFIX=${WORKOUT_API_PREFIX}
+        - API_URL=${API_URL}
+    container_name: trainova_frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - trainova_network
+
+networks:
+  trainova_network:
+    name: trainova_network
+    driver: bridge
+
+
